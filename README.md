@@ -67,11 +67,19 @@ LLMs have token limits. Returning a 50KB repo object is wasteful.
 
 LLMs can't read error messages buried in HTML or long stack traces. Provide a `--no-input` flag that forces the CLI to error if it can't resolve context or if required flags are missing.
 
+### Rule 4: Flexible Input for Issue Bodies
+
+Following `gh`'s pattern, `tangled issue create` will support various ways to provide the issue body, making it LLM-friendly and flexible for scripting. It will accept:
+-   `--body "Text"` or `-b "Text"` for a direct string.
+-   `--body-file ./file.md` or `-F ./file.md` to read from a file.
+-   `--body-file -` or `-F -` to read from standard input (stdin).
+
 ### Summary of Improvements
 
-- **Context Inference:** This is the "killer feature" of gh that we are copying. It makes the tool usable for humans and safer for LLMs (less typing \= fewer errors).
+- **Context Inference:** This is the "killer feature" of gh that we are copying. It makes the tool usable for humans and safer for LLMs (less typing = fewer errors).
 - **Filtered JSON:** Saves tokens for LLM context windows.
 - **Git Config Integration:** Treats the local .git folder as a database of configuration, reducing the need for environment variables or complex flags.
+- **Flexible Issue Body Input:** Improves usability for both humans and LLMs by allowing diverse input methods for issue descriptions.
 
 ## 6. Examples Tangled CLI Usage
 
@@ -79,9 +87,30 @@ LLMs can't read error messages buried in HTML or long stack traces. Provide a `-
 tangled auth login (opens a browser for auth)
 tangled repo create my-new-repo
 cd my-new-repo
-tangled issue create "Bug: Something is broken"
+tangled issue create "Bug: Something is broken" --body "Detailed description of the bug here."
+echo "Another bug description from stdin." | tangled issue create "Bug: From stdin" --body-file -
 tangled issue list --json "id,title"
 ```
+
+## 7. Basic Commands
+
+Basic commands include auth, key management, repo creation, and issue management.
+
+`tangled auth login`
+
+- Logs in the user, ideally through a web browser flow for security.
+  `tangled auth logout`
+- Logs out the user, clearing the session.
+  `tangled ssh-key add <public-key-path>`
+- Uploads the provided public SSH key to the user's tangled.org account via the API.
+  `tangled ssh-key verify`
+- Verifies that the user's SSH key is correctly set up and can authenticate with tangled.org. Returns the associated DID and handle if successful.
+  `tangled repo create <repo-name>`
+- Creates a new repository under the user's account.
+  `tangled repo view [--json <fields>]`
+- Displays details about the current repository. If `--json` is provided, outputs only the specified fields in JSON format.
+  `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
+- Creates a new issue in the current repository with the given title and optional body, which can be provided via flag, file, or stdin.
 
 ## 7. Task Management
 
