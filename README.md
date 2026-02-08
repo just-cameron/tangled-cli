@@ -73,7 +73,7 @@ LLMs can't read error messages buried in HTML or long stack traces. Provide a `-
 - **Filtered JSON:** Saves tokens for LLM context windows.
 - **Git Config Integration:** Treats the local .git folder as a database of configuration, reducing the need for environment variables or complex flags.
 
-### Examples Tangled CLI Usage
+## 6. Examples Tangled CLI Usage
 
 ```bash
 tangled auth login (opens a browser for auth)
@@ -83,11 +83,11 @@ tangled issue create "Bug: Something is broken"
 tangled issue list --json "id,title"
 ```
 
-### Task Management
+## 7. Task Management
 
 We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
 
-### Outstanding Issues
+## 8. Outstanding Issues
 
 1. Can we allow auth through the web browser, rather than just CLI username/password? This would be more secure and user-friendly.
 2. The GitHub CLI manages the private keys allowing you to authenticate git operations. Can we do something similar, or will users have to manage SSH keys separately? Currently, I store my SSH keys in 1Password which signs requests for me. It would be great if tangled CLI could detect this and use it seamlessly, itentifying the user by the signed ssh key.
