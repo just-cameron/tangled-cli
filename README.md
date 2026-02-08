@@ -67,62 +67,6 @@ LLMs have token limits. Returning a 50KB repo object is wasteful.
 
 LLMs can't read error messages buried in HTML or long stack traces. Provide a `--no-input` flag that forces the CLI to error if it can't resolve context or if required flags are missing.
 
-## 6. Implementation Roadmap
-
-### Phase 1: Context & Auth (The "Plumbing")
-
-1. **Auth Storage:** Store the AT Proto session in conf.
-2. **Context Resolver:**
-   - Implement a helper getRepoFromContext().
-   - It calls git remote get-url origin.
-   - Regex matches the Tangled DID from the URL.
-   - Returns the repo param required by XRPC.
-
-### Phase 2: CRUD Commands (The "Porcelain")
-
-1. **repo create:**
-   - Creates record via XRPC.
-   - **Auto-config:** Runs git init and git remote add if local dir is empty.
-2. **issue list/create:**
-   - Uses getRepoFromContext() so the user just types tangled issue create.
-
-### Phase 3: The "Machine" View
-
-1. Implement a generic Formatter class.
-   - Formatter.render(data, { json: true, fields: \['id', 'name'\] })
-   - If json: pick fields, JSON.stringify.
-   - If human: use cli-table3.
-
-## 7. Example: The Context Pattern
-
-This is how we solve the usability problem (and the LLM hallucination problem).
-
-`// src/lib/context.ts`
-`import simpleGit from 'simple-git';`
-
-`export async function resolveRepoContext(explicitFlag?: string): Promise<string> {`
-`// 1. If user passed --repo flag, use it`
-`if (explicitFlag) return explicitFlag;`
-
-`// 2. Try to infer from local git config`
-`const git = simpleGit();`
-`const isRepo = await git.checkIsRepo();`
-
-`if (isRepo) {`
-`const remotes = await git.getRemotes(true);`
-`const tangledRemote = remotes.find(r => r.name === 'tangled' || r.name === 'origin');`
-
-    `if (tangledRemote) {`
-      `// Logic to extract DID from URL (e.g., [https://tangled.sh/did:plc:123/repo](https://tangled.sh/did:plc:123/repo))`
-      `const did = extractDidFromUrl(tangledRemote.refs.fetch);`
-      `if (did) return did;`
-    `}`
-
-`}`
-
-`throw new Error("Could not infer repository context. Please use --repo <did> or run this inside a Tangled repository.");`
-`}`
-
 ### Summary of Improvements
 
 - **Context Inference:** This is the "killer feature" of gh that we are copying. It makes the tool usable for humans and safer for LLMs (less typing \= fewer errors).
@@ -132,16 +76,20 @@ This is how we solve the usability problem (and the LLM hallucination problem).
 ### Examples Tangled CLI Usage
 
 ```bash
-tangled auth login
+tangled auth login (opens a browser for auth)
 tangled repo create my-new-repo
 cd my-new-repo
 tangled issue create "Bug: Something is broken"
 tangled issue list --json "id,title"
 ```
 
+### Task Management
+
+We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
+
 ### Outstanding Issues
 
 1. Can we allow auth through the web browser, rather than just CLI username/password? This would be more secure and user-friendly.
 2. The GitHub CLI manages the private keys allowing you to authenticate git operations. Can we do something similar, or will users have to manage SSH keys separately? Currently, I store my SSH keys in 1Password which signs requests for me. It would be great if tangled CLI could detect this and use it seamlessly, itentifying the user by the signed ssh key.
-3. How should we handle storing the AT Proto session securely? The GitHub CLI uses the OS keychain. We could do something similar.
+3. How should we handle storing the AT Proto session securely? The GitHub CLI uses the OS keychain. We could do something similar. How does this work across different platforms (Windows, macOS, Linux)? We want to avoid storing sensitive tokens in plaintext files.
 4. How are settings resolved (e.g. local config file, home folder, command-line flags)? We should define a clear precedence order.
