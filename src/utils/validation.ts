@@ -107,3 +107,26 @@ export function safeValidateIdentifier(
   }
   return { success: false, error: result.error.issues[0]?.message ?? 'Validation failed' };
 }
+
+/**
+ * Validation schema for Tangled-specific DID (did:plc: format only)
+ */
+export const tangledDidSchema = z
+  .string()
+  .regex(/^did:plc:[a-z0-9]+$/, 'Invalid Tangled DID format. Expected: did:plc:...');
+
+/**
+ * Check if a string is a valid AT Protocol handle
+ * Returns true/false without throwing
+ */
+export function isValidHandle(handle: string): boolean {
+  return handleSchema.safeParse(handle).success;
+}
+
+/**
+ * Check if a string is a valid Tangled DID (did:plc: format)
+ * Returns true/false without throwing
+ */
+export function isValidTangledDid(did: string): boolean {
+  return tangledDidSchema.safeParse(did).success;
+}

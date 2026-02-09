@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isValidHandle,
+  isValidTangledDid,
   safeValidateDid,
   safeValidateHandle,
   safeValidateIdentifier,
@@ -133,6 +135,39 @@ describe('App Password Validation', () => {
 
     it('should reject extremely long passwords', () => {
       expect(() => validateAppPassword('a'.repeat(1001))).toThrow('Password is too long');
+    });
+  });
+});
+
+describe('Boolean Validation Helpers', () => {
+  describe('isValidHandle', () => {
+    it('should return true for valid handles', () => {
+      expect(isValidHandle('user.bsky.social')).toBe(true);
+      expect(isValidHandle('markbennett.ca')).toBe(true);
+      expect(isValidHandle('sub.domain.example.com')).toBe(true);
+    });
+
+    it('should return false for invalid handles', () => {
+      expect(isValidHandle('invalid')).toBe(false);
+      expect(isValidHandle('.starts-with-dot.com')).toBe(false);
+      expect(isValidHandle('ends-with-dot.com.')).toBe(false);
+      expect(isValidHandle('has space.com')).toBe(false);
+      expect(isValidHandle('')).toBe(false);
+    });
+  });
+
+  describe('isValidTangledDid', () => {
+    it('should return true for valid Tangled DIDs (did:plc: format)', () => {
+      expect(isValidTangledDid('did:plc:b2mcbcamkwyznc5fkplwlxbf')).toBe(true);
+      expect(isValidTangledDid('did:plc:abc123xyz')).toBe(true);
+    });
+
+    it('should return false for invalid Tangled DIDs', () => {
+      expect(isValidTangledDid('did:plc:')).toBe(false);
+      expect(isValidTangledDid('did:plc:ABC123')).toBe(false); // uppercase not allowed
+      expect(isValidTangledDid('did:web:example.com')).toBe(false); // wrong method
+      expect(isValidTangledDid('not-a-did')).toBe(false);
+      expect(isValidTangledDid('')).toBe(false);
     });
   });
 });
