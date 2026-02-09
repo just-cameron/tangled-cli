@@ -136,36 +136,36 @@ export function isValidTangledDid(did: string): boolean {
  * Titles must be 1-256 characters
  */
 export const issueTitleSchema = z
-	.string()
-	.min(1, 'Issue title cannot be empty')
-	.max(256, 'Issue title must be 256 characters or less');
+  .string()
+  .min(1, 'Issue title cannot be empty')
+  .max(256, 'Issue title must be 256 characters or less');
 
 /**
  * Validation schema for issue body
  * Body is optional but limited to 50,000 characters
  */
 export const issueBodySchema = z
-	.string()
-	.max(50000, 'Issue body must be 50,000 characters or less')
-	.optional();
+  .string()
+  .max(50000, 'Issue body must be 50,000 characters or less')
+  .optional();
 
 /**
  * Validation schema for AT-URI
  * Format: at://did:method:identifier/collection[/rkey]
  */
 export const atUriSchema = z
-	.string()
-	.regex(
-		/^at:\/\/did:[a-z]+:[a-zA-Z0-9._:%-]+\/[a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9._-]+)*(?:\/[a-zA-Z0-9._-]+)?$/,
-		'Invalid AT-URI format. Expected: at://did:method:id/collection[/rkey]',
-	);
+  .string()
+  .regex(
+    /^at:\/\/did:[a-z]+:[a-zA-Z0-9._:%-]+\/[a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9._-]+)*(?:\/[a-zA-Z0-9._-]+)?$/,
+    'Invalid AT-URI format. Expected: at://did:method:id/collection[/rkey]'
+  );
 
 /**
  * Validate an issue title
  * @throws {z.ZodError} if validation fails
  */
 export function validateIssueTitle(title: string): string {
-	return issueTitleSchema.parse(title);
+  return issueTitleSchema.parse(title);
 }
 
 /**
@@ -173,7 +173,7 @@ export function validateIssueTitle(title: string): string {
  * @throws {z.ZodError} if validation fails
  */
 export function validateIssueBody(body: string): string {
-	return issueBodySchema.parse(body) ?? '';
+  return issueBodySchema.parse(body) ?? '';
 }
 
 /**
@@ -181,5 +181,5 @@ export function validateIssueBody(body: string): string {
  * Returns true/false without throwing
  */
 export function isValidAtUri(uri: string): boolean {
-	return atUriSchema.safeParse(uri).success;
+  return atUriSchema.safeParse(uri).success;
 }

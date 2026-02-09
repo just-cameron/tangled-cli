@@ -28,13 +28,7 @@
     "type": "git",
     "url": "git@tangled.org:markbennett.ca/tangled-cli"
   },
-  "keywords": [
-    "git",
-    "tangled",
-    "pds",
-    "atproto",
-    "cli"
-  ],
+  "keywords": ["git", "tangled", "pds", "atproto", "cli"],
   "author": "Mark Bennett",
   "license": "MIT",
   "dependencies": {

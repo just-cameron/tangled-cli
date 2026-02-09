@@ -6,17 +6,17 @@ import type { TangledApiClient } from '../lib/api-client.js';
  * @returns The current session with did and handle
  */
 export async function requireAuth(client: TangledApiClient): Promise<{
-	did: string;
-	handle: string;
+  did: string;
+  handle: string;
 }> {
-	if (!(await client.isAuthenticated())) {
-		throw new Error('Must be authenticated. Run "tangled auth login" first.');
-	}
+  if (!(await client.isAuthenticated())) {
+    throw new Error('Must be authenticated. Run "tangled auth login" first.');
+  }
 
-	const session = client.getSession();
-	if (!session) {
-		throw new Error('No active session found');
-	}
+  const session = client.getSession();
+  if (!session) {
+    throw new Error('No active session found');
+  }
 
-	return session;
+  return session;
 }

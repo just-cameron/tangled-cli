@@ -194,7 +194,9 @@ describe('Issue Validation', () => {
 
     it('should reject titles over 256 characters', () => {
       const tooLong = 'A'.repeat(257);
-      expect(() => validateIssueTitle(tooLong)).toThrow('Issue title must be 256 characters or less');
+      expect(() => validateIssueTitle(tooLong)).toThrow(
+        'Issue title must be 256 characters or less'
+      );
     });
   });
 
@@ -215,7 +217,9 @@ describe('Issue Validation', () => {
 
     it('should reject bodies over 50,000 characters', () => {
       const tooLong = 'A'.repeat(50001);
-      expect(() => validateIssueBody(tooLong)).toThrow('Issue body must be 50,000 characters or less');
+      expect(() => validateIssueBody(tooLong)).toThrow(
+        'Issue body must be 50,000 characters or less'
+      );
     });
   });
 });
