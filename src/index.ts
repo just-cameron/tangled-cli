@@ -4,6 +4,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { createAuthCommand } from './commands/auth.js';
+import { createConfigCommand } from './commands/config.js';
+import { createContextCommand } from './commands/context.js';
 import { createSshKeyCommand } from './commands/ssh-key.js';
 
 // Get package.json for version
@@ -21,5 +23,7 @@ program
 // Register commands
 program.addCommand(createAuthCommand());
 program.addCommand(createSshKeyCommand());
+program.addCommand(createConfigCommand());
+program.addCommand(createContextCommand());
 
 program.parse(process.argv);
