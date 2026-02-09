@@ -37,17 +37,18 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [ ] Implement logic to parse the DID from `ssh -T git@tangled.org` output (will be reused by `tangled ssh-key verify`).
 - [ ] Implement functionality to resolve a DID (e.g., `did:plc:b2mcbcamkwyznc5fkplwlxbf`) into a human-readable Bluesky handle (will be reused by `tangled ssh-key verify`).
 
-## Repository Management
-
-- [ ] Implement `tangled repo create <repo-name>` command.
-- [ ] Implement `tangled repo view` command (display repo details).
-  - [ ] Support `--json` output with field filtering (e.g., `--json name,cloneUrl,description`) using `lodash/pick`).
-
 ## Issue Management
 
 - [ ] Implement `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]` command.
 - [ ] Implement `tangled issue list [--json "id,title"]` command.
   - [ ] Support `--json` output with field filtering.
+- [ ] Migrate this TODO list into Tangled issues once issue creation is implemented. (note defects and address blocking features as needed).
+
+## Repository Management
+
+- [ ] Implement `tangled repo create <repo-name>` command.
+- [ ] Implement `tangled repo view` command (display repo details).
+  - [ ] Support `--json` output with field filtering (e.g., `--json name,cloneUrl,description`) using `lodash/pick`).
 
 ## Pull Request Management
 
