@@ -7,7 +7,7 @@ import {
   type FetchHandlerOptions,
 } from '@atproto/xrpc'
 import { schemas } from './lexicons.js'
-import { CID } from 'multiformats/cid'
+import { CID } from 'multiformats'
 import { type OmitKey, type Un$Typed } from './util.js'
 import * as ShTangledActorProfile from './types/sh/tangled/actor/profile.js'
 import * as ShTangledFeedReaction from './types/sh/tangled/feed/reaction.js'
