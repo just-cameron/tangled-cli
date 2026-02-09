@@ -13,11 +13,11 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## Authentication (Auth)
 
-- [ ] Implement `tangled auth login` command.
-  - [ ] Collect user's PDS handle and app password.
-  - [ ] Implement session storage using an OS keychain library (e.g., `keytar`) for secure, cross-platform token management.
-  - [ ] Integrate `@atproto/api` for XRPC client and session management.
-- [ ] Implement `tangled auth logout` command.
+- [x] Implement `tangled auth login` command.
+  - [x] Collect user's PDS handle and app password.
+  - [x] Implement session storage using an OS keychain library (e.g., `keytar`) for secure, cross-platform token management.
+  - [x] Integrate `@atproto/api` for XRPC client and session management.
+- [x] Implement `tangled auth logout` command.
 
 ## Git SSH Key Management
 
