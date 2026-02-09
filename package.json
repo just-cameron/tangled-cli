@@ -17,7 +17,9 @@
     "lint:fix": "biome check --write .",
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
-    "prepublishOnly": "npm run build"
+    "prepublishOnly": "npm run build",
+    "codegen": "npx lex gen-api --yes ./src/lexicon ./lexicons/sh/tangled/**/*.json",
+    "update-lexicons": "./scripts/update-lexicons.sh"
   },
   "engines": {
     "node": ">=22.0.0"
@@ -26,7 +28,13 @@
     "type": "git",
     "url": "git@tangled.org:markbennett.ca/tangled-cli"
   },
-  "keywords": ["git", "tangled", "pds", "atproto", "cli"],
+  "keywords": [
+    "git",
+    "tangled",
+    "pds",
+    "atproto",
+    "cli"
+  ],
   "author": "Mark Bennett",
   "license": "MIT",
   "dependencies": {
@@ -40,6 +48,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@atproto/lex-cli": "^0.9.8",
     "@biomejs/biome": "^1.9.4",
     "@types/node": "^22.10.2",
     "tsx": "^4.21.0",
