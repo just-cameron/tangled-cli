@@ -35,16 +35,18 @@ The CLI acts as a "Context Engine" before it even hits the API.
 
 ## Tech Stack (TypeScript)
 
-| Component         | Library               | Purpose                                                       |
-| :---------------- | :-------------------- | :------------------------------------------------------------ |
-| **Framework**     | **commander**         | Routing (tangled repo create).                                |
-| **API Client**    | **@atproto/api**      | Official XRPC client & session management.                    |
-| **Git Context**   | **git-url-parse**     | **New:** Parses remote URLs to extract the Tangled DID/NSID.  |
-| **Git Ops**       | **simple-git**        | Wraps local git operations safely.                            |
-| **Validation**    | **zod**               | Validates inputs & generates schemas for LLMs.                |
-| **Interactivity** | **@inquirer/prompts** | Modern prompts for humans.                                    |
-| **Formatting**    | **cli-table3**        | **New:** For gh-style pretty tables in Human Mode.            |
-| **OS Keychain**   | **keytar**            | **New:** To securely store session tokens in the OS keychain. |
+| Component         | Library                 | Purpose                                                                                        |
+| :---------------- | :---------------------- | :--------------------------------------------------------------------------------------------- |
+| **Framework**     | **commander**           | CLI routing and command parsing (e.g., `tangled repo create`).                                 |
+| **API Client**    | **@atproto/api**        | Official AT Protocol XRPC client, session management, and record operations.                   |
+| **Lexicon Tools** | **@atproto/lexicon**    | Schema validation for custom Tangled.org lexicons (e.g., `sh.tangled.publicKey`).             |
+| **Git Context**   | **git-url-parse**       | Parses remote URLs to extract the Tangled DID/NSID from `.git/config`.                        |
+| **Git Ops**       | **simple-git**          | Wraps local git operations safely.                                                             |
+| **Validation**    | **zod**                 | Input validation and schema generation for LLMs.                                               |
+| **Interactivity** | **@inquirer/prompts**   | Modern, user-friendly prompts for interactive flows.                                           |
+| **Formatting**    | **cli-table3**          | Pretty tables for "Human Mode" output (following gh CLI patterns).                             |
+| **OS Keychain**   | **@napi-rs/keyring**    | Cross-platform secure storage for AT Protocol session tokens (macOS, Windows, Linux).          |
+| **TypeScript**    | **tsx**                 | Fast TypeScript execution for development and testing.                                         |
 
 ## Agent Integration (The "LLM Friendly" Layer)
 

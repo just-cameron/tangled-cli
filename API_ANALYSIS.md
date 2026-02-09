@@ -16,14 +16,80 @@ All commands currently outlined in `TODO.md` appear to be implementable with the
 
 ### Git SSH Key Management
 
+#### Lexicon Details
+
+**`sh.tangled.publicKey` Record Schema** (from `core/lexicons/publicKey.json`):
+```json
+{
+  "lexicon": 1,
+  "id": "sh.tangled.publicKey",
+  "key": "tid",
+  "record": {
+    "required": ["key", "name", "createdAt"],
+    "properties": {
+      "key": {
+        "type": "string",
+        "maxLength": 4096,
+        "description": "public key contents"
+      },
+      "name": {
+        "type": "string",
+        "description": "human-readable name for this key"
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "datetime",
+        "description": "key upload timestamp"
+      }
+    }
+  }
+}
+```
+
+**`sh.tangled.knot.listKeys` Query** (from `core/lexicons/knot/listKeys.json`):
+- Query endpoint for listing public keys stored on the knot server
+- Returns: Array of `{ did, key, createdAt }`
+- Supports pagination with `limit` and `cursor` parameters
+
+#### Implementation Approach
+
 *   **`tangled ssh-key add <public-key-path>`**:
-    *   **Feasible (using generic ATProto record creation).** The `core/lexicons/publicKey.json` defines the `sh.tangled.publicKey` record type. To add a user's global SSH public key, the CLI would use the generic ATProto `com.atproto.repo.createRecord` procedure. The `collection` parameter would be set to `sh.tangled.publicKey`, and the public key content (`key`) and a human-readable name (`name`) would be provided as the record data.
+    *   **Feasible (using generic ATProto record creation).**
+    *   Uses `AtpAgent.com.atproto.repo.createRecord()` with:
+      - `collection: "sh.tangled.publicKey"`
+      - `record: { key, name, createdAt }`
+    *   The record will be stored on the user's PDS (Personal Data Server)
+    *   The CLI reads the public key file, validates the format, and creates the record
+
 *   **`tangled ssh-key verify`**:
     *   **Feasible.** This command can be implemented by:
-        1.  Executing `ssh -T git@tangled.org` to capture the authenticated user's DID from the server response.
-        2.  Using the `sh.tangled.knot.listKeys` query (defined in `core/lexicons/knot/listKeys.json`) to fetch a list of public keys known to the knot server. This query returns objects that include the `did` associated with each key.
-        3.  Comparing the DID obtained from the SSH output with the DIDs returned by `listKeys` to confirm the key's association.
-        4.  Resolving the DID to a human-readable Bluesky handle using the standard AT Protocol `com.atproto.identity.resolveHandle` procedure (part of `@atproto/api`).
+        1.  Executing `ssh -T git@tangled.org` to capture the authenticated user's DID from the server response
+        2.  Parsing the DID from the SSH output
+        3.  Resolving the DID to a human-readable Bluesky handle using `com.atproto.identity.resolveHandle`
+    *   Note: The `sh.tangled.knot.listKeys` query is available but may require knot server access
+
+#### TypeScript/JavaScript Tools
+
+- **`@atproto/api`**: Main SDK for AT Protocol operations
+  - `AtpAgent` class handles authentication and API calls
+  - Built-in methods for `com.atproto.repo.createRecord`, `getRecord`, `listRecords`
+
+- **`@atproto/lexicon`**: Schema validation library
+  - `Lexicons` class for loading and validating custom schemas
+  - Provides `assertValidRecord()` for validating record data against lexicons
+
+- **Direct Record Creation**: No code generation needed
+  ```typescript
+  await agent.com.atproto.repo.createRecord({
+    repo: agent.session.did,
+    collection: 'sh.tangled.publicKey',
+    record: {
+      key: publicKeyContent,
+      name: keyName,
+      createdAt: new Date().toISOString()
+    }
+  })
+  ```
 
 ### Repository Management
 
