@@ -10,7 +10,7 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
 
 describe('Tangled CLI', () => {
   it('should display version', () => {
-    const output = execSync('tsx src/index.ts --version', {
+    const output = execSync('npx tsx src/index.ts --version', {
       encoding: 'utf-8',
       cwd: join(__dirname, '..'),
     });
@@ -18,7 +18,7 @@ describe('Tangled CLI', () => {
   });
 
   it('should display help', () => {
-    const output = execSync('tsx src/index.ts --help', {
+    const output = execSync('npx tsx src/index.ts --help', {
       encoding: 'utf-8',
       cwd: join(__dirname, '..'),
     });
