@@ -9,6 +9,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [ ] Implement basic CLI command structure (e.g., `tangled --version`, `tangled --help`).
 - [ ] Set up TypeScript configuration.
 - [ ] Configure linting and formatting (ESLint, Prettier).
+- [ ] Configure vitest for testing.
 
 ## 2. Authentication (Auth)
 
