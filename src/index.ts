@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
+import { createAuthCommand } from './commands/auth.js';
 
 // Get package.json for version
 const __filename = fileURLToPath(import.meta.url);
@@ -16,13 +17,7 @@ program
   .description('A CLI for Tangled.org - AT Protocol-based Git hosting')
   .version(packageJson.version, '-v, --version', 'Output the current version');
 
-// Future command registrations will go here
-// Example:
-// program
-//   .command('auth')
-//   .description('Authenticate with Tangled.org')
-//   .action(() => {
-//     console.log('Auth command coming soon!');
-//   });
+// Register commands
+program.addCommand(createAuthCommand());
 
 program.parse(process.argv);
