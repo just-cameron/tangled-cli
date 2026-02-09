@@ -1,4 +1,4 @@
-import { input, password } from '@inquirer/prompts';
+import { confirm, input, password, select } from '@inquirer/prompts';
 import { safeValidateIdentifier } from './validation.js';
 
 /**
@@ -53,4 +53,40 @@ export async function promptForLogin(): Promise<{
     identifier,
     password: passwordValue,
   };
+}
+
+/**
+ * Prompt user to select a Git remote when multiple tangled remotes exist
+ *
+ * @param remotes - Array of available remotes with name and URL
+ * @returns Selected remote name
+ */
+export async function promptForRemoteSelection(
+  remotes: Array<{ name: string; url: string }>
+): Promise<string> {
+  const choices = remotes.map((remote) => ({
+    name: `${remote.name} (${remote.url})`,
+    value: remote.name,
+  }));
+
+  // Default to "origin" if present
+  const defaultValue = remotes.find((r) => r.name === 'origin')?.name;
+
+  return await select({
+    message: 'Multiple tangled.org remotes found. Which one would you like to use?',
+    choices,
+    default: defaultValue,
+  });
+}
+
+/**
+ * Prompt user whether to save remote selection to config
+ *
+ * @returns true if user wants to save
+ */
+export async function promptToSaveRemote(): Promise<boolean> {
+  return await confirm({
+    message: 'Save this remote selection for this repository? (saves to .tangledrc)',
+    default: false,
+  });
 }
