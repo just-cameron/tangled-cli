@@ -44,6 +44,7 @@ The CLI acts as a "Context Engine" before it even hits the API.
 | **Validation**    | **zod**               | Validates inputs & generates schemas for LLMs.               |
 | **Interactivity** | **@inquirer/prompts** | Modern prompts for humans.                                   |
 | **Formatting**    | **cli-table3**        | **New:** For gh-style pretty tables in Human Mode.           |
+| **OS Keychain**   | **keytar**            | **New:** To securely store session tokens in the OS keychain. |
 
 ## 5. Agent Integration (The "LLM Friendly" Layer)
 
@@ -112,13 +113,51 @@ Basic commands include auth, key management, repo creation, and issue management
   `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
 - Creates a new issue in the current repository with the given title and optional body, which can be provided via flag, file, or stdin.
 
-## 7. Task Management
+## 8. Design Decisions & Outstanding Issues
+
+This section documents key design decisions and tracks outstanding architectural questions.
+
+### 1. (Resolved) SSH Key Management (`gh` Compatibility)
+
+*   **Original Question:** How does `gh` manage SSH keys, and can we follow that pattern?
+*   **Resolution:** Analysis shows that `gh` does *not* manage private keys. It facilitates uploading the user's *public* key to their GitHub account. The local SSH agent handles the private key.
+*   **Our Approach:** The `tangled ssh-key add` command follows this exact pattern. It provides a user-friendly way to upload a public key to `tangled.org`. This resolves the core of this issue, as it is compatible with external key managers like 1Password's SSH agent.
+
+### 2. (Decided) Secure Session Storage
+
+*   **Original Question:** How should we securely store the AT Proto session token?
+*   **Resolution:** Storing sensitive tokens in plaintext files is not secure.
+*   **Our Approach:** The CLI will use the operating system's native keychain for secure storage (e.g., macOS Keychain, Windows Credential Manager, or Secret Service on Linux). A library like `keytar` will be used to abstract the platform differences.
+
+### 3. (Decided) Configuration Resolution Order
+
+*   **Original Question:** How should settings be resolved from different sources?
+*   **Resolution:** A clear precedence order is necessary.
+*   **Our Approach:** The CLI will resolve settings in the following order of precedence (highest first):
+    1.  Command-line flags (e.g., `--repo-did ...`)
+    2.  Environment variables (e.g., `TANGLED_REPO_DID=...`)
+    3.  Project-specific config file (e.g., `.tangled/config.yml` in the current directory)
+    4.  Global user config file (e.g., `~/.config/tangled/config.yml`)
+
+### 4. (Outstanding) Web-based Authentication Flow
+
+*   **Original Question:** Can we allow auth through a web browser?
+*   **Status:** This remains an outstanding issue. The standard AT Protocol authentication flow is based on user handles and app passwords, not a third-party OAuth2 flow like GitHub CLI uses.
+*   **Path Forward:** Implementing a web-based auth flow would require custom development on the `tangled.org` service itself to securely generate and transmit a session token back to the CLI. This is out of scope for the initial version of the CLI.
+
+## 9. Future Expansion Opportunities
+
+The analysis of the `tangled.org` API revealed a rich set of features that are not yet part of the initial CLI plan but represent significant opportunities for future expansion. These include:
+
+*   **Pull Requests:** A full suite of commands for creating, viewing, listing, merging, and commenting on pull requests.
+*   **CI/CD Pipelines:** Commands to view pipeline status and manage CI/CD jobs.
+*   **Repository Secrets:** A dedicated command set for managing CI/CD secrets within a repository (`tangled repo secret ...`).
+*   **Advanced Git Operations:** Commands to interact with the commit log, diffs, branches, and tags directly via the API, augmenting local `git` commands.
+*   **Social & Feed Interactions:** Commands for starring repositories, reacting to feed items, and managing the user's social graph (following/unfollowing).
+*   **Label Management:** Commands to create, apply, and remove labels from issues and pull requests.
+*   **Collaboration:** Commands to manage repository collaborators.
+*   **Fork Management:** Commands for forking repositories and managing the sync status of forks.
+
+## 10. Task Management
 
 We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
-
-## 8. Outstanding Issues
-
-1. Can we allow auth through the web browser, rather than just CLI username/password? This would be more secure and user-friendly.
-2. The GitHub CLI manages the private keys allowing you to authenticate git operations. Can we do something similar, or will users have to manage SSH keys separately? Currently, I store my SSH keys in 1Password which signs requests for me. It would be great if tangled CLI could detect this and use it seamlessly, itentifying the user by the signed ssh key.
-3. How should we handle storing the AT Proto session securely? The GitHub CLI uses the OS keychain. We could do something similar. How does this work across different platforms (Windows, macOS, Linux)? We want to avoid storing sensitive tokens in plaintext files.
-4. How are settings resolved (e.g. local config file, home folder, command-line flags)? We should define a clear precedence order.

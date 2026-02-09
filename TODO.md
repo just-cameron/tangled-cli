@@ -11,7 +11,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## 2. Authentication (Auth)
 - [ ] Implement `tangled auth login` command.
-    - [ ] Explore methods for secure AT Proto session storage (OS keychain consideration across platforms: Windows, macOS, Linux).
+    - [ ] Implement session storage using an OS keychain library (e.g., `keytar`) for secure, cross-platform token management.
     - [ ] Integrate `@atproto/api` for XRPC client and session management.
     - [ ] Investigate web browser authentication flow.
 - [ ] Implement `tangled auth logout` command.
