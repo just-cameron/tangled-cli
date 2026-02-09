@@ -42,23 +42,48 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [ ] Implement `tangled issue list [--json "id,title"]` command.
     - [ ] Support `--json` output with field filtering.
 
-## 7. Output & LLM Integration
+## 7. Pull Request Management
+
+This section outlines the phased implementation for Pull Request (PR) support, following `gh` CLI patterns.
+
+### Phase 1: Creating a Pull Request from a Branch (Author Workflow)
+- [ ] Implement `tangled pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]` command.
+    - [ ] Generate the `git diff` patch between the `--head` and `--base` branches.
+    - [ ] Upload the generated patch as a blob using `com.atproto.repo.uploadBlob` (or equivalent).
+    - [ ] Create a `sh.tangled.repo.pull` record using `com.atproto.repo.createRecord`, including `target` (repo and base branch), `source` (head branch and SHA), `title`, `body`, and the `patchBlob` reference.
+- [ ] Implement `tangled pr list [--json <fields>]` command to list pull requests for the current repository.
+    - [ ] Use `com.atproto.repo.listRecords` with `collection: "sh.tangled.repo.pull"`.
+- [ ] Implement `tangled pr view <id> [--json <fields>]` command to display detailed information about a specific pull request.
+    - [ ] Use `com.atproto.repo.getRecord` for the `sh.tangled.repo.pull` record.
+    - [ ] Fetch associated comments using `com.atproto.repo.listRecords` with `collection: "sh.tangled.repo.pull.comment"`.
+
+### Phase 2: Working as a Reviewer (Commenting)
+- [ ] Implement `tangled pr comment <id> [--body <body> | --body-file <file> | -F -]` command.
+    - [ ] Create a `sh.tangled.repo.pull.comment` record using `com.atproto.repo.createRecord`, linking it to the pull request's AT-URI.
+- [ ] Implement `tangled pr review <id> --comment <comment> [--approve | --request-changes]` command.
+    - [ ] Create a `sh.tangled.repo.pull.comment` record.
+    - [ ] Update the `sh.tangled.repo.pull.status` record (if applicable) to reflect approval or requested changes. (Further API research might be needed to map approve/request-changes to status updates).
+
+### Phase 3: Responding to a Review (Author Workflow)
+- [ ] This phase primarily involves local Git operations (pushing new commits) and using `tangled pr comment` for clarifications, which are covered by existing or planned commands.
+
+## 8. Output & LLM Integration
 - [ ] Implement output formatting based on `is-interactive` check.
     - [ ] "Human Mode" (TTY): Use `cli-table3` for pretty tables.
     - [ ] "Machine Mode" (Pipe/`--json`): Plain text or JSON output.
 - [ ] Implement `--json` flag for structured output.
 - [ ] Implement `--no-input` flag to force CLI to error on unresolved context or missing flags (Fail Fast, Fail Loud principle).
 
-## 8. Testing
+## 9. Testing
 - [ ] Set up a testing framework (e.g., Jest, Vitest).
 - [ ] Write unit tests for core modules (Auth, Context Resolver, API client).
 - [ ] Write integration tests for CLI commands.
 
-## 9. Documentation & Deployment
+## 10. Documentation & Deployment
 - [ ] Generate CLI help documentation (`commander` usually handles this).
 - [ ] Consider packaging/distribution strategy (npm, standalone binary).
 
-## 10. Outstanding Issues / Future Considerations (from README)
+## 11. Outstanding Issues / Future Considerations (from README)
 - [ ] Secure cross-platform AT Proto session storage (OS keychain).
 - [ ] Git authentication management similar to GitHub CLI (SSH keys, 1Password integration).
 - [ ] Define clear precedence order for settings resolution (local config, home folder, CLI flags).

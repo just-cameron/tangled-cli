@@ -91,11 +91,14 @@ cd my-new-repo
 tangled issue create "Bug: Something is broken" --body "Detailed description of the bug here."
 echo "Another bug description from stdin." | tangled issue create "Bug: From stdin" --body-file -
 tangled issue list --json "id,title"
+tangled pr create --base main --head my-feature --title "Add new feature" --body-file ./pr_description.md
+tangled pr view 123
+tangled pr comment 123 --body "Looks good, small change needed."
 ```
 
 ## 7. Basic Commands
 
-Basic commands include auth, key management, repo creation, and issue management.
+Basic commands include auth, key management, repo creation, issue management, and pull request management.
 
 `tangled auth login`
 
@@ -112,6 +115,16 @@ Basic commands include auth, key management, repo creation, and issue management
 - Displays details about the current repository. If `--json` is provided, outputs only the specified fields in JSON format.
   `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
 - Creates a new issue in the current repository with the given title and optional body, which can be provided via flag, file, or stdin.
+  `tangled pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]`
+- Creates a new pull request in the current repository from a head branch to a base branch.
+  `tangled pr list [--json <fields>]`
+- Lists pull requests for the current repository.
+  `tangled pr view <id> [--json <fields>]`
+- Displays detailed information about a specific pull request, including comments.
+  `tangled pr comment <id> [--body <body> | --body-file <file> | -F -]`
+- Adds a comment to a pull request.
+  `tangled pr review <id> --comment <comment> [--approve | --request-changes]`
+- Submits a review for a pull request, with optional approval or request for changes.
 
 ## 8. Design Decisions & Outstanding Issues
 
@@ -149,7 +162,6 @@ This section documents key design decisions and tracks outstanding architectural
 
 The analysis of the `tangled.org` API revealed a rich set of features that are not yet part of the initial CLI plan but represent significant opportunities for future expansion. These include:
 
-*   **Pull Requests:** A full suite of commands for creating, viewing, listing, merging, and commenting on pull requests.
 *   **CI/CD Pipelines:** Commands to view pipeline status and manage CI/CD jobs.
 *   **Repository Secrets:** A dedicated command set for managing CI/CD secrets within a repository (`tangled repo secret ...`).
 *   **Advanced Git Operations:** Commands to interact with the commit log, diffs, branches, and tags directly via the API, augmenting local `git` commands.
