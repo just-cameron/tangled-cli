@@ -35,6 +35,8 @@
     "@inquirer/prompts": "^8.2.0",
     "@napi-rs/keyring": "^1.2.0",
     "commander": "^12.1.0",
+    "cosmiconfig": "^9.0.0",
+    "simple-git": "^3.30.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
