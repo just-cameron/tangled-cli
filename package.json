@@ -1,0 +1,42 @@
+{
+  "name": "tangled-cli",
+  "version": "0.0.1",
+  "description": "A simple CLI for Tangled.org. Inspired by GitHub CLI, and usable by humans and AI.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "tangled": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@tangled.org:markbennett.ca/tangled-cli"
+  },
+  "keywords": ["git", "tangled", "pds", "atproto", "cli"],
+  "author": "Mark Bennett",
+  "license": "MIT",
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^1.9.4",
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}

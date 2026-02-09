@@ -4,12 +4,12 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## 1. Project Setup & Core Structure (Commander.js)
 
-- [ ] Initialize Node.js project.
-- [ ] Install `commander` for CLI routing.
-- [ ] Implement basic CLI command structure (e.g., `tangled --version`, `tangled --help`).
-- [ ] Set up TypeScript configuration.
-- [ ] Configure linting and formatting (ESLint, Prettier).
-- [ ] Configure vitest for testing.
+- [x] Initialize Node.js project.
+- [x] Install `commander` for CLI routing.
+- [x] Implement basic CLI command structure (e.g., `tangled --version`, `tangled --help`).
+- [x] Set up TypeScript configuration.
+- [x] Configure linting and formatting (Biome).
+- [x] Configure vitest for testing.
 
 ## 2. Authentication (Auth)
 

@@ -177,3 +177,72 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 ## 10. Task Management
 
 We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
+
+## 11. Development
+
+### Prerequisites
+
+- Node.js 22.0.0 or higher (latest LTS)
+- npm (comes with Node.js)
+
+### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+npm install
+```
+
+### Available Scripts
+
+- `npm run dev` - Run the CLI in development mode (with hot reload via tsx)
+- `npm run build` - Build TypeScript to JavaScript (output to `dist/`)
+- `npm test` - Run tests once
+- `npm run test:watch` - Run tests in watch mode
+- `npm run test:coverage` - Run tests with coverage report
+- `npm run lint` - Check code with Biome linter
+- `npm run lint:fix` - Auto-fix linting issues
+- `npm run format` - Format code with Biome
+- `npm run typecheck` - Type check without building
+
+### Running Locally
+
+```bash
+# Run the CLI in development mode
+npm run dev -- --version
+npm run dev -- --help
+
+# Build and run the production version
+npm run build
+node dist/index.js --version
+
+# Install globally for local testing
+npm link
+tangled --version
+tangled --help
+npm unlink -g tangled-cli  # Unlink when done
+```
+
+### Project Structure
+
+```
+tangled-cli/
+├── src/
+│   ├── index.ts          # Main CLI entry point
+│   ├── commands/         # Command implementations
+│   ├── lib/              # Core business logic
+│   └── utils/            # Helper functions
+├── tests/                # Test files
+├── dist/                 # Build output (gitignored)
+└── package.json          # Package configuration
+```
+
+### Technology Stack
+
+- **TypeScript 5.7.2** - Latest stable with strict mode enabled
+- **Node.js 22+** - Latest LTS target
+- **ES2023** - Latest stable ECMAScript target
+- **Biome** - Fast linter and formatter (replaces ESLint + Prettier)
+- **Vitest** - Fast unit test framework
+- **Commander.js** - CLI framework
+- **tsx** - Fast TypeScript execution for development
