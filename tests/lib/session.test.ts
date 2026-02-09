@@ -1,7 +1,6 @@
 import type { AtpSessionData } from '@atproto/api';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
-  type SessionMetadata,
   clearCurrentSessionMetadata,
   deleteSession,
   getCurrentSessionMetadata,
@@ -9,87 +8,58 @@ import {
   saveCurrentSessionMetadata,
   saveSession,
 } from '../../src/lib/session.js';
+import { mockSessionData, mockSessionData2, mockSessionMetadata } from '../helpers/mock-data.js';
 
 // Mock @napi-rs/keyring
-vi.mock('@napi-rs/keyring', () => {
-  const mockStorage = new Map<string, string>();
+const mockKeyringStorage = new Map<string, string>();
 
+vi.mock('@napi-rs/keyring', () => {
   return {
     AsyncEntry: vi.fn().mockImplementation((service: string, account: string) => {
       const key = `${service}:${account}`;
 
       return {
         setPassword: vi.fn().mockImplementation(async (password: string) => {
-          mockStorage.set(key, password);
+          mockKeyringStorage.set(key, password);
         }),
         getPassword: vi.fn().mockImplementation(async () => {
-          return mockStorage.get(key) || null;
+          return mockKeyringStorage.get(key) || null;
         }),
         deleteCredential: vi.fn().mockImplementation(async () => {
-          return mockStorage.delete(key);
+          return mockKeyringStorage.delete(key);
         }),
       };
     }),
-    // Export the storage for test access
-    __mockStorage: mockStorage,
   };
 });
 
 describe('Session Management', () => {
-  beforeEach(async () => {
+  beforeEach(() => {
     // Clear mock storage before each test
-    // biome-ignore lint/suspicious/noExplicitAny: accessing mock-specific property
-    const keyring = (await import('@napi-rs/keyring')) as any;
-    if (keyring.__mockStorage instanceof Map) {
-      keyring.__mockStorage.clear();
-    }
+    mockKeyringStorage.clear();
     vi.clearAllMocks();
   });
 
-  afterEach(async () => {
+  afterEach(() => {
     // Clean up after each test
-    // biome-ignore lint/suspicious/noExplicitAny: accessing mock-specific property
-    const keyring = (await import('@napi-rs/keyring')) as any;
-    if (keyring.__mockStorage instanceof Map) {
-      keyring.__mockStorage.clear();
-    }
+    mockKeyringStorage.clear();
   });
 
   describe('saveSession', () => {
     it('should save session to keychain using DID', async () => {
-      const sessionData: AtpSessionData = {
-        did: 'did:plc:test123',
-        handle: 'user.bsky.social',
-        email: 'user@example.com',
-        emailConfirmed: true,
-        active: true,
-        accessJwt: 'token123',
-        refreshJwt: 'refresh123',
-      };
-
-      await saveSession(sessionData);
+      await saveSession(mockSessionData);
 
       // Verify session was stored
-      const loaded = await loadSession('did:plc:test123');
-      expect(loaded).toEqual(sessionData);
+      const loaded = await loadSession(mockSessionData.did);
+      expect(loaded).toEqual(mockSessionData);
     });
 
     it('should save and retrieve session with all required fields', async () => {
-      const sessionData: AtpSessionData = {
-        did: 'did:plc:test456',
-        handle: 'user.bsky.social',
-        email: 'user@example.com',
-        emailConfirmed: true,
-        active: true,
-        accessJwt: 'token123',
-        refreshJwt: 'refresh123',
-      };
-
-      await saveSession(sessionData);
+      await saveSession(mockSessionData2);
 
       // Verify session was stored (keyed by DID)
-      const loaded = await loadSession('did:plc:test456');
-      expect(loaded).toEqual(sessionData);
+      const loaded = await loadSession(mockSessionData2.did);
+      expect(loaded).toEqual(mockSessionData2);
     });
 
     it('should throw error if session has no DID or handle', async () => {
@@ -107,18 +77,10 @@ describe('Session Management', () => {
 
   describe('loadSession', () => {
     it('should load session from keychain', async () => {
-      const sessionData: AtpSessionData = {
-        did: 'did:plc:test123',
-        handle: 'user.bsky.social',
-        active: true,
-        accessJwt: 'token123',
-        refreshJwt: 'refresh123',
-      };
+      await saveSession(mockSessionData);
+      const result = await loadSession(mockSessionData.did);
 
-      await saveSession(sessionData);
-      const result = await loadSession('did:plc:test123');
-
-      expect(result).toEqual(sessionData);
+      expect(result).toEqual(mockSessionData);
     });
 
     it('should return null when session not found', async () => {
@@ -129,26 +91,18 @@ describe('Session Management', () => {
 
   describe('deleteSession', () => {
     it('should delete session from keychain', async () => {
-      const sessionData: AtpSessionData = {
-        did: 'did:plc:test123',
-        handle: 'user.bsky.social',
-        active: true,
-        accessJwt: 'token123',
-        refreshJwt: 'refresh123',
-      };
-
-      await saveSession(sessionData);
+      await saveSession(mockSessionData);
 
       // Verify session exists
-      let loaded = await loadSession('did:plc:test123');
-      expect(loaded).toEqual(sessionData);
+      let loaded = await loadSession(mockSessionData.did);
+      expect(loaded).toEqual(mockSessionData);
 
       // Delete session
-      const deleted = await deleteSession('did:plc:test123');
+      const deleted = await deleteSession(mockSessionData.did);
       expect(deleted).toBe(true);
 
       // Verify session no longer exists
-      loaded = await loadSession('did:plc:test123');
+      loaded = await loadSession(mockSessionData.did);
       expect(loaded).toBeNull();
     });
 
@@ -160,17 +114,10 @@ describe('Session Management', () => {
 
   describe('session metadata', () => {
     it('should save and load current session metadata', async () => {
-      const metadata: SessionMetadata = {
-        handle: 'user.bsky.social',
-        did: 'did:plc:test123',
-        pds: 'https://bsky.social',
-        lastUsed: new Date().toISOString(),
-      };
-
-      await saveCurrentSessionMetadata(metadata);
+      await saveCurrentSessionMetadata(mockSessionMetadata);
       const result = await getCurrentSessionMetadata();
 
-      expect(result).toEqual(metadata);
+      expect(result).toEqual(mockSessionMetadata);
     });
 
     it('should return null when no metadata exists', async () => {
@@ -179,18 +126,11 @@ describe('Session Management', () => {
     });
 
     it('should clear current session metadata', async () => {
-      const metadata: SessionMetadata = {
-        handle: 'user.bsky.social',
-        did: 'did:plc:test123',
-        pds: 'https://bsky.social',
-        lastUsed: new Date().toISOString(),
-      };
-
-      await saveCurrentSessionMetadata(metadata);
+      await saveCurrentSessionMetadata(mockSessionMetadata);
 
       // Verify metadata exists
       let result = await getCurrentSessionMetadata();
-      expect(result).toEqual(metadata);
+      expect(result).toEqual(mockSessionMetadata);
 
       // Clear metadata
       await clearCurrentSessionMetadata();
