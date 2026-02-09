@@ -27,12 +27,13 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## Context Engine (Git Integration)
 
-- [ ] Integrate `git-url-parse` to resolve Tangled DID/NSID from `.git/config` remote URLs.
 - [ ] Develop a "Context Resolver" module to infer repository context (DID) from the current working directory.
-- [ ] Implement fallback mechanisms if no git remote is found or DID cannot be resolved (error handling).
-- [ ] Integrate `simple-git` for safe local git operations.
-- [ ] Implement logic to parse the DID from `ssh -T git@tangled.org` output (will be reused by `tangled ssh-key verify`).
-- [ ] Implement functionality to resolve a DID (e.g., `did:plc:b2mcbcamkwyznc5fkplwlxbf`) into a human-readable Bluesky handle (will be reused by `tangled ssh-key verify`).
+  - [ ] Start by using the current Git repository context.
+    - [ ] Integrate `git-url-parse` to resolve Tangled DID/NSID from `.git/config` remote URLs. Using `simple-git` if needed.
+    - [ ] If multiple remotes exist, look for one at tangled.org, then prompt the user to select remote if ambiguity remains.
+    - [ ] Fallback to prompting the user to add a remote for their Tangled repository if none are found.
+  - [ ] Avoid creating a config file in V1; rely on Git remotes and CLI flags for context.
+    - [ ] If a config is needed remember that the precedence order should be: CLI flags > local config > home folder config. Users may prefer different settings per repo (such as unique remote names, etc).
 
 ## Issue Management
 
