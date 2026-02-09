@@ -2,7 +2,9 @@
 
 ## Project Overview
 
-**Goal:** Create a context-aware CLI for tangled.org that bridges the gap between the AT Protocol (XRPC) and standard Git. **Philosophy:** Follow the **GitHub CLI (gh)** standard: act as a wrapper that creates a seamless experience where the API and local Git repo feel like one unified tool.
+**Goal:** Create a context-aware CLI for tangled.org that bridges the gap between the AT Protocol (XRPC) and standard Git.
+
+**Philosophy:** Follow the **GitHub CLI (gh)** standard: act as a wrapper that creates a seamless experience where the API and local Git repo feel like one unified tool.
 
 ## Prior Art Analysis: GitHub CLI (gh) vs. Tangled CLI
 
