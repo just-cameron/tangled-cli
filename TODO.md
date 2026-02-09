@@ -22,7 +22,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 ## Git SSH Key Management
 
 - [ ] Implement `tangled ssh-key add <public-key-path>` command.
-  - [ ] This command should upload the provided public SSH key to the user's tangled.org account via the API, similar to how `gh ssh-key add` works.
+  - [ ] This command should upload the provided public SSH key to the user's tangled.org account via the API, similar to how `gh ssh-key add` works. If no path is provided, it should default to `~/.ssh/id_rsa.pub` or prompt the user for a path.
   - [ ] The CLI is not responsible for generating SSH keys or managing the local ssh-agent; users are expected to handle these steps externally.
 - [ ] Implement `tangled ssh-key verify` command.
   - [ ] This command should execute `ssh -T git@tangled.org`, parse the DID from its output, and then resolve that DID to a Bluesky handle, displaying the result to the user.
