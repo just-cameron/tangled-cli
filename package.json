@@ -18,7 +18,7 @@
     "format": "biome format --write .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
-    "codegen": "npx lex gen-api --yes ./src/lexicon ./lexicons/sh/tangled/**/*.json",
+    "codegen": "npx lex gen-api --yes ./src/lexicon ./lexicons/sh/tangled/**/*.json && node scripts/fix-lexicon-imports.js",
     "update-lexicons": "./scripts/update-lexicons.sh"
   },
   "engines": {
@@ -38,6 +38,7 @@
     "@napi-rs/keyring": "^1.2.0",
     "commander": "^12.1.0",
     "cosmiconfig": "^9.0.0",
+    "multiformats": "^9.9.0",
     "simple-git": "^3.30.0",
     "zod": "^4.3.6"
   },
