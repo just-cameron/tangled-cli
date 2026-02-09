@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { requireAuth } from '../../src/utils/auth-helpers.js';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
 
