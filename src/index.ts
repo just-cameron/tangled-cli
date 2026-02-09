@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Command } from 'commander';
 import { createAuthCommand } from './commands/auth.js';
+import { createSshKeyCommand } from './commands/ssh-key.js';
 
 // Get package.json for version
 const __filename = fileURLToPath(import.meta.url);
@@ -19,5 +20,6 @@ program
 
 // Register commands
 program.addCommand(createAuthCommand());
+program.addCommand(createSshKeyCommand());
 
 program.parse(process.argv);

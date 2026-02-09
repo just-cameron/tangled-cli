@@ -21,12 +21,9 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## Git SSH Key Management
 
-- [ ] Implement `tangled ssh-key add <public-key-path>` command.
-  - [ ] This command should upload the provided public SSH key to the user's tangled.org account via the API, similar to how `gh ssh-key add` works. If no path is provided, it should default to `~/.ssh/id_rsa.pub` or prompt the user for a path.
-  - [ ] The CLI is not responsible for generating SSH keys or managing the local ssh-agent; users are expected to handle these steps externally.
-- [ ] Implement `tangled ssh-key verify` command.
-  - [ ] This command should execute `ssh -T git@tangled.org`, parse the DID from its output, and then resolve that DID to a Bluesky handle, displaying the result to the user.
-- [ ] Ensure all Git operations leverage SSH keys for authentication, as `tangled.org` exclusively supports SSH for Git.
+- [x] Implement `tangled ssh-key verify` command.
+  - [x] This command executes `ssh -T git@tangled.org`, parses the DID from its output, and displays it to the user.
+  - [x] If the user is logged in with the CLI and their DID matches the SSH DID, their handle is also displayed.
 
 ## Context Engine (Git Integration)
 
@@ -78,6 +75,18 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 
 - [ ] This phase primarily involves local Git operations (pushing new commits) and using `tangled pr comment` for clarifications, which are covered by existing or planned commands.
 
+## SSH Key Upload & Management (Phase 4)
+
+This phase adds CLI-based SSH key management for users who want to upload keys programmatically.
+
+- [ ] Implement `tangled ssh-key add <public-key-path>` command.
+  - [ ] This command should upload the provided public SSH key to the user's tangled.org account via the API, similar to how `gh ssh-key add` works. If no path is provided, it should default to `~/.ssh/id_ed25519.pub` or prompt the user for a path.
+  - [ ] Support reading keys from SSH agent via `ssh-add -L` for 1Password SSH agent users.
+  - [ ] The CLI is not responsible for generating SSH keys or managing the local ssh-agent; users are expected to handle these steps externally.
+- [ ] Implement `tangled ssh-key list` command.
+  - [ ] List all SSH keys stored in the user's PDS.
+  - [ ] Display key type, name, creation date, and URI.
+
 ## Output & LLM Integration
 
 - [ ] Implement output formatting based on `is-interactive` check.
@@ -88,9 +97,10 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 
 ## Testing
 
-- [ ] Set up a testing framework (e.g., Jest, Vitest).
-- [ ] Write unit tests for core modules (Auth, Context Resolver, API client).
-- [ ] Write integration tests for CLI commands.
+- [x] Set up a testing framework (Vitest).
+- [x] Write unit tests for core modules (Auth, Session, API client, Validation, Prompts).
+- [x] Write integration tests for CLI commands (Auth, SSH key verify).
+- [ ] Add integration tests for remaining commands as they are implemented.
 
 ## Documentation & Deployment
 
@@ -99,7 +109,9 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 
 ## Outstanding Issues / Future Considerations (from README)
 
-- [ ] Secure cross-platform AT Proto session storage (OS keychain).
-- [ ] Git authentication management similar to GitHub CLI (SSH keys, 1Password integration).
+- [x] Secure cross-platform AT Proto session storage (OS keychain) - Implemented with @napi-rs/keyring.
+- [x] SSH key verification for Git authentication - Implemented `tangled ssh-key verify`.
+- [ ] SSH key upload management (See Phase 4 above).
+- [ ] 1Password SSH agent integration for key upload (See Phase 4 above).
 - [ ] Define clear precedence order for settings resolution (local config, home folder, CLI flags).
 - [ ] Consider adding extensions/plugins (Out of Scope for V1, but keep in mind).
