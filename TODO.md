@@ -27,13 +27,13 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## Context Engine (Git Integration)
 
-- [ ] Develop a "Context Resolver" module to infer repository context (DID) from the current working directory.
-  - [ ] Start by using the current Git repository context.
-    - [ ] Integrate `git-url-parse` to resolve Tangled DID/NSID from `.git/config` remote URLs. Using `simple-git` if needed.
-    - [ ] If multiple remotes exist, look for one at tangled.org, then prompt the user to select remote if ambiguity remains.
-    - [ ] Fallback to prompting the user to add a remote for their Tangled repository if none are found.
-  - [ ] Avoid creating a config file in V1; rely on Git remotes and CLI flags for context.
-    - [ ] If a config is needed remember that the precedence order should be: CLI flags > local config > home folder config. Users may prefer different settings per repo (such as unique remote names, etc).
+- [x] Develop a "Context Resolver" module to infer repository context (DID) from the current working directory.
+  - [x] Start by using the current Git repository context.
+    - [x] Integrate `git-url-parse` to resolve Tangled DID/NSID from `.git/config` remote URLs. Using `simple-git` if needed.
+    - [x] If multiple remotes exist, look for one at tangled.org, then prompt the user to select remote if ambiguity remains.
+    - [x] Fallback to prompting the user to add a remote for their Tangled repository if none are found.
+  - [x] Avoid creating a config file in V1; rely on Git remotes and CLI flags for context.
+    - [x] If a config is needed remember that the precedence order should be: CLI flags > local config > home folder config. Users may prefer different settings per repo (such as unique remote names, etc).
 
 ## Issue Management
 
@@ -41,12 +41,8 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [ ] Implement `tangled issue list [--json "id,title"]` command.
   - [ ] Support `--json` output with field filtering.
 - [ ] Migrate this TODO list into Tangled issues once issue creation is implemented. (note defects and address blocking features as needed).
-
-## Repository Management
-
-- [ ] Implement `tangled repo create <repo-name>` command.
-- [ ] Implement `tangled repo view` command (display repo details).
-  - [ ] Support `--json` output with field filtering (e.g., `--json name,cloneUrl,description`) using `lodash/pick`).
+  - [ ] Create phases in this todo list, and then use `- [ ]` tasks in the issue descriptions.
+  - [ ] Remove TODO.md once all tasks are migrated to issues.
 
 ## Pull Request Management
 
@@ -63,6 +59,7 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 - [ ] Implement `tangled pr view <id> [--json <fields>]` command to display detailed information about a specific pull request.
   - [ ] Use `com.atproto.repo.getRecord` for the `sh.tangled.repo.pull` record.
   - [ ] Fetch associated comments using `com.atproto.repo.listRecords` with `collection: "sh.tangled.repo.pull.comment"`.
+  - [ ] Dogfood the CLI by using it to create a pull request for these changes, and then view the created PR to ensure all data is correctly stored and retrieved.
 
 ### Phase 2: Working as a Reviewer (Commenting)
 
@@ -75,6 +72,12 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 ### Phase 3: Responding to a Review (Author Workflow)
 
 - [ ] This phase primarily involves local Git operations (pushing new commits) and using `tangled pr comment` for clarifications, which are covered by existing or planned commands.
+
+## Repository Management
+
+- [ ] Implement `tangled repo create <repo-name>` command.
+- [ ] Implement `tangled repo view` command (display repo details).
+  - [ ] Support `--json` output with field filtering (e.g., `--json name,cloneUrl,description`) using `lodash/pick`).
 
 ## SSH Key Upload & Management (Phase 4)
 
