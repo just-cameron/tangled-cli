@@ -175,6 +175,8 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 - **Label Management:** Commands to create, apply, and remove labels from issues and pull requests.
 - **Collaboration:** Commands to manage repository collaborators.
 - **Fork Management:** Commands for forking repositories and managing the sync status of forks.
+- **Reactions**: Commands to add and remove reactions on issues, pull requests, and comments.
+- **Commenting on Issues**: Commands to add comments to issues.
 
 ## Task Management
 
