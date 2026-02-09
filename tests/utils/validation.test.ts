@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isValidAtUri,
   isValidHandle,
   isValidTangledDid,
   safeValidateDid,
@@ -9,6 +10,8 @@ import {
   validateDid,
   validateHandle,
   validateIdentifier,
+  validateIssueBody,
+  validateIssueTitle,
 } from '../../src/utils/validation.js';
 
 describe('Handle Validation', () => {
@@ -168,6 +171,72 @@ describe('Boolean Validation Helpers', () => {
       expect(isValidTangledDid('did:web:example.com')).toBe(false); // wrong method
       expect(isValidTangledDid('not-a-did')).toBe(false);
       expect(isValidTangledDid('')).toBe(false);
+    });
+  });
+});
+
+describe('Issue Validation', () => {
+  describe('validateIssueTitle', () => {
+    it('should accept valid issue titles', () => {
+      expect(validateIssueTitle('Bug: Fix login error')).toBe('Bug: Fix login error');
+      expect(validateIssueTitle('Feature: Add dark mode')).toBe('Feature: Add dark mode');
+      expect(validateIssueTitle('A')).toBe('A'); // minimum length
+    });
+
+    it('should accept titles up to 256 characters', () => {
+      const longTitle = 'A'.repeat(256);
+      expect(validateIssueTitle(longTitle)).toBe(longTitle);
+    });
+
+    it('should reject empty titles', () => {
+      expect(() => validateIssueTitle('')).toThrow('Issue title cannot be empty');
+    });
+
+    it('should reject titles over 256 characters', () => {
+      const tooLong = 'A'.repeat(257);
+      expect(() => validateIssueTitle(tooLong)).toThrow('Issue title must be 256 characters or less');
+    });
+  });
+
+  describe('validateIssueBody', () => {
+    it('should accept valid issue bodies', () => {
+      expect(validateIssueBody('This is a description')).toBe('This is a description');
+      expect(validateIssueBody('Multi\nline\ndescription')).toBe('Multi\nline\ndescription');
+    });
+
+    it('should accept bodies up to 50,000 characters', () => {
+      const longBody = 'A'.repeat(50000);
+      expect(validateIssueBody(longBody)).toBe(longBody);
+    });
+
+    it('should accept empty string', () => {
+      expect(validateIssueBody('')).toBe('');
+    });
+
+    it('should reject bodies over 50,000 characters', () => {
+      const tooLong = 'A'.repeat(50001);
+      expect(() => validateIssueBody(tooLong)).toThrow('Issue body must be 50,000 characters or less');
+    });
+  });
+});
+
+describe('AT-URI Validation', () => {
+  describe('isValidAtUri', () => {
+    it('should return true for valid AT-URIs', () => {
+      expect(isValidAtUri('at://did:plc:abc123/sh.tangled.repo/my-repo')).toBe(true);
+      expect(isValidAtUri('at://did:plc:abc123/sh.tangled.repo.issue/xyz789')).toBe(true);
+      expect(isValidAtUri('at://did:web:example.com/collection')).toBe(true);
+    });
+
+    it('should return true for AT-URIs without rkey', () => {
+      expect(isValidAtUri('at://did:plc:abc123/collection')).toBe(true);
+    });
+
+    it('should return false for invalid AT-URIs', () => {
+      expect(isValidAtUri('http://example.com')).toBe(false);
+      expect(isValidAtUri('at://not-a-did/collection')).toBe(false);
+      expect(isValidAtUri('at://did:plc:abc/invalid collection')).toBe(false);
+      expect(isValidAtUri('')).toBe(false);
     });
   });
 });
