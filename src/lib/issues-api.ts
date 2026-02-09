@@ -1,10 +1,21 @@
-import type { Record as IssueRecord } from '../lexicon/types/sh/tangled/repo/issue.js';
 import { parseAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import type { TangledApiClient } from './api-client.js';
 
-// Re-export the generated issue record type for convenience
-export type { IssueRecord };
+/**
+ * Issue record type based on sh.tangled.repo.issue lexicon
+ * @see lexicons/sh/tangled/issue/issue.json
+ */
+export interface IssueRecord {
+  $type: 'sh.tangled.repo.issue';
+  repo: string;
+  title: string;
+  body?: string;
+  createdAt: string;
+  mentions?: string[];
+  references?: string[];
+  [key: string]: unknown;
+}
 
 /**
  * Issue record with metadata
