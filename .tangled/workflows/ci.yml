@@ -1,0 +1,32 @@
+# CI Pipeline - Run linting, type checking, and tests on all pushes
+#
+# This pipeline ensures code quality by running checks on every push to any branch.
+
+when:
+  - event: ["push", "manual"]
+    branch: ["*"]
+
+engine: nixery
+
+# Clone repository to get all source files
+clone: true
+
+dependencies:
+  nixpkgs:
+    - nodejs_22
+
+environment:
+  NODE_ENV: "test"
+
+steps:
+  - name: "Install dependencies"
+    command: "npm ci"
+
+  - name: "Run linting"
+    command: "npm run lint"
+
+  - name: "Run type checking"
+    command: "npm run typecheck"
+
+  - name: "Run tests"
+    command: "npm test"
