@@ -239,6 +239,67 @@ tangled-cli/
 └── package.json          # Package configuration
 ```
 
+### Coding Guidelines
+
+**IMPORTANT: These guidelines must be followed for all code contributions.**
+
+#### Validation Functions Location
+
+**ALL validation logic belongs in `src/utils/validation.ts`**
+
+- Use Zod schemas for all input validation
+- Boolean validation helpers (e.g., `isValidHandle()`, `isValidTangledDid()`) go in `validation.ts`
+- Never define validation functions in other files - import from `validation.ts`
+- Validation functions should return `true/false` or use Zod's `safeParse()` pattern
+
+Example:
+```typescript
+// ✅ CORRECT: validation.ts
+export function isValidHandle(handle: string): boolean {
+  return handleSchema.safeParse(handle).success;
+}
+
+// ❌ WRONG: Don't define validators in other files
+// git.ts should import isValidHandle, not define it
+```
+
+#### Test Coverage Requirements
+
+**ALL code must have comprehensive test coverage**
+
+- Every new feature requires tests in the corresponding `tests/` directory
+- Commands must have test files (e.g., `src/commands/foo.ts` → `tests/commands/foo.test.ts`)
+- Utilities must have test files (e.g., `src/utils/bar.ts` → `tests/utils/bar.test.ts`)
+- Tests should cover:
+  - Success cases (happy path)
+  - Error cases (validation failures, network errors, etc.)
+  - Edge cases (empty input, boundary values, etc.)
+- Aim for high test coverage - tests are not optional
+
+Example test structure:
+```typescript
+describe('MyFeature', () => {
+  describe('successfulOperation', () => {
+    it('should handle valid input', async () => { /* ... */ });
+    it('should handle edge case', async () => { /* ... */ });
+  });
+
+  describe('errorHandling', () => {
+    it('should reject invalid input', async () => { /* ... */ });
+    it('should handle network errors', async () => { /* ... */ });
+  });
+});
+```
+
+#### Pull Request Checklist
+
+Before submitting code, verify:
+- [ ] All validation functions are in `validation.ts`
+- [ ] Comprehensive tests are written and passing
+- [ ] TypeScript compilation passes (`npm run typecheck`)
+- [ ] Linting passes (`npm run lint`)
+- [ ] All tests pass (`npm test`)
+
 ### Technology Stack
 
 - **TypeScript 5.7.2** - Latest stable with strict mode enabled
