@@ -2,7 +2,7 @@
 
 This document outlines the development tasks for the Tangled CLI, based on the `README.md` and project goals.
 
-## 1. Project Setup & Core Structure (Commander.js)
+## Project Setup & Core Structure (Commander.js)
 
 - [x] Initialize Node.js project.
 - [x] Install `commander` for CLI routing.
@@ -11,7 +11,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [x] Configure linting and formatting (Biome).
 - [x] Configure vitest for testing.
 
-## 2. Authentication (Auth)
+## Authentication (Auth)
 
 - [ ] Implement `tangled auth login` command.
   - [ ] Collect user's PDS handle and app password.
@@ -19,7 +19,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
   - [ ] Integrate `@atproto/api` for XRPC client and session management.
 - [ ] Implement `tangled auth logout` command.
 
-## 3. Git SSH Key Management
+## Git SSH Key Management
 
 - [ ] Implement `tangled ssh-key add <public-key-path>` command.
   - [ ] This command should upload the provided public SSH key to the user's tangled.org account via the API, similar to how `gh ssh-key add` works.
@@ -28,7 +28,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
   - [ ] This command should execute `ssh -T git@tangled.org`, parse the DID from its output, and then resolve that DID to a Bluesky handle, displaying the result to the user.
 - [ ] Ensure all Git operations leverage SSH keys for authentication, as `tangled.org` exclusively supports SSH for Git.
 
-## 4. Context Engine (Git Integration)
+## Context Engine (Git Integration)
 
 - [ ] Integrate `git-url-parse` to resolve Tangled DID/NSID from `.git/config` remote URLs.
 - [ ] Develop a "Context Resolver" module to infer repository context (DID) from the current working directory.
@@ -37,19 +37,19 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 - [ ] Implement logic to parse the DID from `ssh -T git@tangled.org` output (will be reused by `tangled ssh-key verify`).
 - [ ] Implement functionality to resolve a DID (e.g., `did:plc:b2mcbcamkwyznc5fkplwlxbf`) into a human-readable Bluesky handle (will be reused by `tangled ssh-key verify`).
 
-## 5. Repository Management
+## Repository Management
 
 - [ ] Implement `tangled repo create <repo-name>` command.
 - [ ] Implement `tangled repo view` command (display repo details).
   - [ ] Support `--json` output with field filtering (e.g., `--json name,cloneUrl,description`) using `lodash/pick`).
 
-## 6. Issue Management
+## Issue Management
 
 - [ ] Implement `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]` command.
 - [ ] Implement `tangled issue list [--json "id,title"]` command.
   - [ ] Support `--json` output with field filtering.
 
-## 7. Pull Request Management
+## Pull Request Management
 
 This section outlines the phased implementation for Pull Request (PR) support, following `gh` CLI patterns.
 
@@ -77,7 +77,7 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 
 - [ ] This phase primarily involves local Git operations (pushing new commits) and using `tangled pr comment` for clarifications, which are covered by existing or planned commands.
 
-## 8. Output & LLM Integration
+## Output & LLM Integration
 
 - [ ] Implement output formatting based on `is-interactive` check.
   - [ ] "Human Mode" (TTY): Use `cli-table3` for pretty tables.
@@ -85,18 +85,18 @@ This section outlines the phased implementation for Pull Request (PR) support, f
 - [ ] Implement `--json` flag for structured output.
 - [ ] Implement `--no-input` flag to force CLI to error on unresolved context or missing flags (Fail Fast, Fail Loud principle).
 
-## 9. Testing
+## Testing
 
 - [ ] Set up a testing framework (e.g., Jest, Vitest).
 - [ ] Write unit tests for core modules (Auth, Context Resolver, API client).
 - [ ] Write integration tests for CLI commands.
 
-## 10. Documentation & Deployment
+## Documentation & Deployment
 
 - [ ] Generate CLI help documentation (`commander` usually handles this).
 - [ ] Consider packaging/distribution strategy (npm, standalone binary).
 
-## 11. Outstanding Issues / Future Considerations (from README)
+## Outstanding Issues / Future Considerations (from README)
 
 - [ ] Secure cross-platform AT Proto session storage (OS keychain).
 - [ ] Git authentication management similar to GitHub CLI (SSH keys, 1Password integration).

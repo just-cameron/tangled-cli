@@ -1,10 +1,10 @@
 # Tangled CLI: Architecture & Implementation Plan
 
-## 1. Project Overview
+## Project Overview
 
 **Goal:** Create a context-aware CLI for tangled.org that bridges the gap between the AT Protocol (XRPC) and standard Git. **Philosophy:** Follow the **GitHub CLI (gh)** standard: act as a wrapper that creates a seamless experience where the API and local Git repo feel like one unified tool.
 
-## 2. Prior Art Analysis: GitHub CLI (gh) vs. Tangled CLI
+## Prior Art Analysis: GitHub CLI (gh) vs. Tangled CLI
 
 | Feature        | GitHub CLI (gh) Approach                             | Tangled CLI Strategy                                                                                                       |
 | :------------- | :--------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------- |
@@ -14,7 +14,7 @@
 | **Filtering**  | \--json name,url (filters fields).                   | **Plan:** Support basic \--json flag first. Add field filtering (--json "cloneUrl,did") to save LLM context window tokens. |
 | **Extensions** | Allows custom subcommands.                           | _Out of Scope for V1._                                                                                                     |
 
-## 3. High-Level Architecture (Refined)
+## High-Level Architecture (Refined)
 
 The CLI acts as a "Context Engine" before it even hits the API.
 `graph TD`
@@ -33,7 +33,7 @@ The CLI acts as a "Context Engine" before it even hits the API.
     `API --> Output`
     `Shell --> Output`
 
-## 4. Tech Stack (TypeScript)
+## Tech Stack (TypeScript)
 
 | Component         | Library               | Purpose                                                       |
 | :---------------- | :-------------------- | :------------------------------------------------------------ |
@@ -46,7 +46,7 @@ The CLI acts as a "Context Engine" before it even hits the API.
 | **Formatting**    | **cli-table3**        | **New:** For gh-style pretty tables in Human Mode.            |
 | **OS Keychain**   | **keytar**            | **New:** To securely store session tokens in the OS keychain. |
 
-## 5. Agent Integration (The "LLM Friendly" Layer)
+## Agent Integration (The "LLM Friendly" Layer)
 
 To make this tool accessible to Claude Code/Gemini, we adopt gh's best patterns:
 
@@ -83,7 +83,7 @@ Following `gh`'s pattern, `tangled issue create` will support various ways to pr
 - **Git Config Integration:** Treats the local .git folder as a database of configuration, reducing the need for environment variables or complex flags.
 - **Flexible Issue Body Input:** Improves usability for both humans and LLMs by allowing diverse input methods for issue descriptions.
 
-## 6. Examples Tangled CLI Usage
+## Examples Tangled CLI Usage
 
 ```bash
 tangled auth login (opens a browser for auth)
@@ -97,7 +97,7 @@ tangled pr view 123
 tangled pr comment 123 --body "Looks good, small change needed."
 ```
 
-## 7. Basic Commands
+## Basic Commands
 
 Basic commands include auth, key management, repo creation, issue management, and pull request management.
 
@@ -127,23 +127,23 @@ Basic commands include auth, key management, repo creation, issue management, an
   `tangled pr review <id> --comment <comment> [--approve | --request-changes]`
 - Submits a review for a pull request, with optional approval or request for changes.
 
-## 8. Design Decisions & Outstanding Issues
+## Design Decisions & Outstanding Issues
 
 This section documents key design decisions and tracks outstanding architectural questions.
 
-### 1. (Resolved) SSH Key Management (`gh` Compatibility)
+### (Resolved) SSH Key Management (`gh` Compatibility)
 
 - **Original Question:** How does `gh` manage SSH keys, and can we follow that pattern?
 - **Resolution:** Analysis shows that `gh` does _not_ manage private keys. It facilitates uploading the user's _public_ key to their GitHub account. The local SSH agent handles the private key.
 - **Our Approach:** The `tangled ssh-key add` command follows this exact pattern. It provides a user-friendly way to upload a public key to `tangled.org`. This resolves the core of this issue, as it is compatible with external key managers like 1Password's SSH agent.
 
-### 2. (Decided) Secure Session Storage
+### (Decided) Secure Session Storage
 
 - **Original Question:** How should we securely store the AT Proto session token?
 - **Resolution:** Storing sensitive tokens in plaintext files is not secure.
 - **Our Approach:** The CLI will use the operating system's native keychain for secure storage (e.g., macOS Keychain, Windows Credential Manager, or Secret Service on Linux). A library like `keytar` will be used to abstract the platform differences.
 
-### 3. (Decided) Configuration Resolution Order
+### (Decided) Configuration Resolution Order
 
 - **Original Question:** How should settings be resolved from different sources?
 - **Resolution:** A clear precedence order is necessary.
@@ -153,7 +153,7 @@ This section documents key design decisions and tracks outstanding architectural
   3.  Project-specific config file (e.g., `.tangled/config.yml` in the current directory)
   4.  Global user config file (e.g., `~/.config/tangled/config.yml`)
 
-### 4. (Decided for V1) Authentication Flow: App Passwords (PDS)
+### (Decided for V1) Authentication Flow: App Passwords (PDS)
 
 - **Original Question:** Can we allow auth through a web browser?
 - **Resolution:** For the initial version, the CLI will use **App Passwords** for authentication. This is the standard and simplest method for third-party AT Protocol clients and aligns with existing practices.
@@ -162,7 +162,7 @@ This section documents key design decisions and tracks outstanding architectural
 - **Session Management:** The session established is with the user's PDS, and this authenticated session is then used to interact with `tangled.org`'s App View/Service.
 - **OAuth Support:** Implementing a web-based OAuth flow (similar to `gh`'s approach) is more complex and not a standard part of the AT Protocol client authentication flow. This approach is deferred for future consideration.
 
-## 9. Future Expansion Opportunities
+## Future Expansion Opportunities
 
 The analysis of the `tangled.org` API revealed a rich set of features that are not yet part of the initial CLI plan but represent significant opportunities for future expansion. These include:
 
@@ -174,11 +174,11 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 - **Collaboration:** Commands to manage repository collaborators.
 - **Fork Management:** Commands for forking repositories and managing the sync status of forks.
 
-## 10. Task Management
+## Task Management
 
 We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
 
-## 11. Development
+## Development
 
 ### Prerequisites
 
