@@ -26,11 +26,21 @@
     "type": "git",
     "url": "git@tangled.org:markbennett.ca/tangled-cli"
   },
-  "keywords": ["git", "tangled", "pds", "atproto", "cli"],
+  "keywords": [
+    "git",
+    "tangled",
+    "pds",
+    "atproto",
+    "cli"
+  ],
   "author": "Mark Bennett",
   "license": "MIT",
   "dependencies": {
-    "commander": "^12.1.0"
+    "@atproto/api": "^0.18.20",
+    "@inquirer/prompts": "^8.2.0",
+    "@napi-rs/keyring": "^1.2.0",
+    "commander": "^12.1.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
