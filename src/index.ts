@@ -6,6 +6,7 @@ import { Command } from 'commander';
 import { createAuthCommand } from './commands/auth.js';
 import { createConfigCommand } from './commands/config.js';
 import { createContextCommand } from './commands/context.js';
+import { createIssueCommand } from './commands/issue.js';
 import { createSshKeyCommand } from './commands/ssh-key.js';
 
 // Get package.json for version
@@ -25,5 +26,6 @@ program.addCommand(createAuthCommand());
 program.addCommand(createSshKeyCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createContextCommand());
+program.addCommand(createIssueCommand());
 
 program.parse(process.argv);
