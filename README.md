@@ -182,7 +182,7 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 
 ## Task Management
 
-We're bootstrapping task tracking with TODO.md, but will migrate all tasks into Tangled issues and dog food the product as soon as we have basic issue creation and listing working.
+Tasks are tracked in the [Tangled issue tracker](https://tangled.org/markbennett.ca/tangled-cli/issues). Use `tangled issue list` or `tangled issue view <n>` to browse tasks.
 
 ## Development
 
@@ -213,10 +213,14 @@ npm install
 
 ### Running Locally
 
+When running commands against the development version, use `npm run dev` with the `--` separator to pass arguments to the CLI:
+
 ```bash
 # Run the CLI in development mode
 npm run dev -- --version
 npm run dev -- --help
+npm run dev -- issue list
+npm run dev -- issue create "My issue title" --body "Issue body"
 
 # Build and run the production version
 npm run build
