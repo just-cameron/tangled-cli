@@ -16,3 +16,12 @@ export function formatDate(dateString: string): string {
   if (days < 365) return `${Math.floor(days / 30)} months ago`;
   return date.toLocaleDateString();
 }
+
+/**
+ * Format issue state for display
+ * @param state - Issue state ('open' or 'closed')
+ * @returns Formatted state badge string
+ */
+export function formatIssueState(state: 'open' | 'closed'): string {
+  return state === 'open' ? '[OPEN]' : '[CLOSED]';
+}

@@ -6,6 +6,7 @@ import * as context from '../../src/lib/context.js';
 import * as issuesApi from '../../src/lib/issues-api.js';
 import type { IssueWithMetadata } from '../../src/lib/issues-api.js';
 import * as atUri from '../../src/utils/at-uri.js';
+import * as authHelpers from '../../src/utils/auth-helpers.js';
 import * as bodyInput from '../../src/utils/body-input.js';
 
 // Mock dependencies
@@ -14,6 +15,8 @@ vi.mock('../../src/lib/issues-api.js');
 vi.mock('../../src/lib/context.js');
 vi.mock('../../src/utils/at-uri.js');
 vi.mock('../../src/utils/body-input.js');
+vi.mock('../../src/utils/auth-helpers.js');
+vi.mock('@inquirer/prompts');
 
 describe('issue create command', () => {
   let mockClient: TangledApiClient;
@@ -278,9 +281,7 @@ describe('issue list command', () => {
     });
 
     // Mock AT-URI builder
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(
-      'at://did:plc:abc123/sh.tangled.repo/xyz789'
-    );
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
   });
 
   afterEach(() => {
@@ -314,6 +315,7 @@ describe('issue list command', () => {
         issues: mockIssues,
         cursor: undefined,
       });
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'list']);
@@ -325,8 +327,8 @@ describe('issue list command', () => {
       });
 
       expect(consoleLogSpy).toHaveBeenCalledWith('\nFound 2 issues:\n');
-      expect(consoleLogSpy).toHaveBeenCalledWith('  #issue1  First Issue');
-      expect(consoleLogSpy).toHaveBeenCalledWith('  #issue2  Second Issue');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  #1  [OPEN]  First Issue');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  #2  [OPEN]  Second Issue');
     });
 
     it('should handle custom limit', async () => {
@@ -364,9 +366,7 @@ describe('issue list command', () => {
 
       const command = createIssueCommand();
 
-      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
-        'process.exit(1)'
-      );
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow('process.exit(1)');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
         '✗ Not authenticated. Run "tangled auth login" first.'
@@ -381,9 +381,7 @@ describe('issue list command', () => {
 
       const command = createIssueCommand();
 
-      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
-        'process.exit(1)'
-      );
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow('process.exit(1)');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Not in a Tangled repository');
       expect(processExitSpy).toHaveBeenCalledWith(1);
@@ -398,35 +396,29 @@ describe('issue list command', () => {
         'process.exit(1)'
       );
 
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '✗ Invalid limit. Must be between 1 and 100.'
-      );
+      expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Invalid limit. Must be between 1 and 100.');
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
     it('should fail with invalid limit (too high)', async () => {
       const command = createIssueCommand();
 
-      await expect(
-        command.parseAsync(['node', 'test', 'list', '--limit', '101'])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '✗ Invalid limit. Must be between 1 and 100.'
+      await expect(command.parseAsync(['node', 'test', 'list', '--limit', '101'])).rejects.toThrow(
+        'process.exit(1)'
       );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Invalid limit. Must be between 1 and 100.');
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
 
     it('should fail with non-numeric limit', async () => {
       const command = createIssueCommand();
 
-      await expect(
-        command.parseAsync(['node', 'test', 'list', '--limit', 'abc'])
-      ).rejects.toThrow('process.exit(1)');
-
-      expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '✗ Invalid limit. Must be between 1 and 100.'
+      await expect(command.parseAsync(['node', 'test', 'list', '--limit', 'abc'])).rejects.toThrow(
+        'process.exit(1)'
       );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Invalid limit. Must be between 1 and 100.');
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
@@ -437,12 +429,516 @@ describe('issue list command', () => {
 
       const command = createIssueCommand();
 
-      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
-        'process.exit(1)'
-      );
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow('process.exit(1)');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Failed to list issues: Network error');
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
+  });
+});
+
+describe('issue view command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockIssue: IssueWithMetadata = {
+    $type: 'sh.tangled.repo.issue',
+    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    title: 'Test Issue',
+    body: 'Issue body',
+    createdAt: new Date('2024-01-01').toISOString(),
+    uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    cid: 'bafyrei1',
+    author: 'did:plc:abc123',
+  };
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as never;
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+
+    vi.mocked(authHelpers.requireAuth).mockResolvedValue({
+      did: 'did:plc:abc123',
+      handle: 'test.bsky.social',
+    } as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should view issue by number', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+    vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'view', '1']);
+
+    expect(issuesApi.getIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+    });
+    expect(issuesApi.getIssueState).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue #1 [OPEN]');
+    expect(consoleLogSpy).toHaveBeenCalledWith('Title: Test Issue');
+    expect(consoleLogSpy).toHaveBeenCalledWith('\nBody:');
+    expect(consoleLogSpy).toHaveBeenCalledWith('Issue body');
+  });
+
+  it('should view issue by rkey', async () => {
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+    vi.mocked(issuesApi.getIssueState).mockResolvedValue('closed');
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'view', 'issue1']);
+
+    expect(issuesApi.getIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue issue1 [CLOSED]');
+  });
+
+  it('should show issue without body', async () => {
+    const issueWithoutBody = { ...mockIssue, body: undefined };
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [issueWithoutBody],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(issueWithoutBody);
+    vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'view', '1']);
+
+    const allCalls = consoleLogSpy.mock.calls.map((c) => c[0]);
+    expect(allCalls).not.toContain('Body:');
+  });
+
+  it('should fail when not authenticated', async () => {
+    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'view', '1'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '✗ Not authenticated. Run "tangled auth login" first.'
+    );
+  });
+
+  it('should fail when not in a Tangled repository', async () => {
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue(null);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'view', '1'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Not in a Tangled repository');
+  });
+
+  it('should fail when issue number is out of range', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'view', '99'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Issue #99 not found'));
+  });
+});
+
+describe('issue edit command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockIssue: IssueWithMetadata = {
+    $type: 'sh.tangled.repo.issue',
+    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    title: 'Original Title',
+    createdAt: new Date('2024-01-01').toISOString(),
+    uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    cid: 'bafyrei1',
+    author: 'did:plc:abc123',
+  };
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as never;
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+
+    vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
+    vi.mocked(authHelpers.requireAuth).mockResolvedValue({
+      did: 'did:plc:abc123',
+      handle: 'test.bsky.social',
+    } as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should edit issue title by number', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.updateIssue).mockResolvedValue({ ...mockIssue, title: 'New Title' });
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'edit', '1', '--title', 'New Title']);
+
+    expect(issuesApi.updateIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+      title: 'New Title',
+      body: undefined,
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 updated');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Updated: title');
+  });
+
+  it('should edit issue body', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(bodyInput.readBodyInput).mockResolvedValue('New body');
+    vi.mocked(issuesApi.updateIssue).mockResolvedValue({ ...mockIssue, body: 'New body' });
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'edit', '1', '--body', 'New body']);
+
+    expect(issuesApi.updateIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+      title: undefined,
+      body: 'New body',
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Updated: body');
+  });
+
+  it('should fail when no options provided', async () => {
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'edit', '1'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '✗ At least one of --title, --body, or --body-file must be provided'
+    );
+  });
+
+  it('should fail when not authenticated', async () => {
+    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(
+      command.parseAsync(['node', 'test', 'edit', '1', '--title', 'New'])
+    ).rejects.toThrow('process.exit(1)');
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '✗ Not authenticated. Run "tangled auth login" first.'
+    );
+  });
+});
+
+describe('issue close command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockIssue: IssueWithMetadata = {
+    $type: 'sh.tangled.repo.issue',
+    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    title: 'Test Issue',
+    createdAt: new Date('2024-01-01').toISOString(),
+    uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    cid: 'bafyrei1',
+    author: 'did:plc:abc123',
+  };
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should close issue by number', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.closeIssue).mockResolvedValue(undefined);
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'close', '1']);
+
+    expect(issuesApi.closeIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 closed');
+  });
+
+  it('should fail when not authenticated', async () => {
+    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'close', '1'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+  });
+});
+
+describe('issue reopen command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockIssue: IssueWithMetadata = {
+    $type: 'sh.tangled.repo.issue',
+    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    title: 'Test Issue',
+    createdAt: new Date('2024-01-01').toISOString(),
+    uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    cid: 'bafyrei1',
+    author: 'did:plc:abc123',
+  };
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should reopen issue by number', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.reopenIssue).mockResolvedValue(undefined);
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'reopen', '1']);
+
+    expect(issuesApi.reopenIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 reopened');
+  });
+
+  it('should fail when not authenticated', async () => {
+    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'reopen', '1'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+  });
+});
+
+describe('issue delete command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let processExitSpy: ReturnType<typeof vi.spyOn>;
+
+  const mockIssue: IssueWithMetadata = {
+    $type: 'sh.tangled.repo.issue',
+    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    title: 'Test Issue',
+    createdAt: new Date('2024-01-01').toISOString(),
+    uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+    cid: 'bafyrei1',
+    author: 'did:plc:abc123',
+  };
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as never;
+    processExitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should delete issue with --force flag', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.deleteIssue).mockResolvedValue(undefined);
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'delete', '1', '--force']);
+
+    expect(issuesApi.deleteIssue).toHaveBeenCalledWith({
+      client: mockClient,
+      issueUri: mockIssue.uri,
+    });
+    expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 deleted');
+  });
+
+  it('should cancel deletion when user declines confirmation', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+
+    const { confirm } = await import('@inquirer/prompts');
+    vi.mocked(confirm).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'delete', '1'])).rejects.toThrow(
+      'process.exit(0)'
+    );
+
+    expect(issuesApi.deleteIssue).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('Deletion cancelled.');
+    expect(processExitSpy).toHaveBeenCalledWith(0);
+  });
+
+  it('should delete when user confirms', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
+    vi.mocked(issuesApi.deleteIssue).mockResolvedValue(undefined);
+
+    const { confirm } = await import('@inquirer/prompts');
+    vi.mocked(confirm).mockResolvedValue(true);
+
+    const command = createIssueCommand();
+    await command.parseAsync(['node', 'test', 'delete', '1']);
+
+    expect(issuesApi.deleteIssue).toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 deleted');
+  });
+
+  it('should fail when not authenticated', async () => {
+    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+    const command = createIssueCommand();
+    await expect(command.parseAsync(['node', 'test', 'delete', '1', '--force'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      '✗ Not authenticated. Run "tangled auth login" first.'
+    );
   });
 });
