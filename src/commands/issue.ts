@@ -87,6 +87,28 @@ async function resolveIssueUri(
 }
 
 /**
+ * Resolve a sequential issue number from a displayId or by scanning the issue list.
+ * Fast path: if displayId is "#N", return N directly.
+ * Fallback: fetch all issues, sort oldest-first, return 1-based position.
+ */
+async function resolveSequentialNumber(
+  displayId: string,
+  issueUri: string,
+  client: TangledApiClient,
+  repoAtUri: string
+): Promise<number | undefined> {
+  const match = displayId.match(/^#(\d+)$/);
+  if (match) return Number.parseInt(match[1], 10);
+
+  const { issues } = await listIssues({ client, repoAtUri, limit: 100 });
+  const sorted = issues.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  const idx = sorted.findIndex((i) => i.uri === issueUri);
+  return idx >= 0 ? idx + 1 : undefined;
+}
+
+/**
  * Issue view subcommand
  */
 function createViewCommand(): Command {
@@ -264,7 +286,11 @@ function createCloseCommand(): Command {
   return new Command('close')
     .description('Close an issue')
     .argument('<issue-id>', 'Issue number or rkey')
-    .action(async (issueId: string) => {
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (number, title, uri, state, cid)'
+    )
+    .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
         const client = createApiClient();
@@ -288,11 +314,23 @@ function createCloseCommand(): Command {
         // 4. Resolve issue ID to URI
         const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
 
-        // 5. Close issue
+        // 5. Fetch issue details and sequential number
+        const issue = await getIssue({ client, issueUri });
+        const number = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
+
+        // 6. Close issue
         await closeIssue({ client, issueUri });
 
-        // 6. Display success
-        console.log(`✓ Issue ${displayId} closed`);
+        // 7. Display success
+        if (options.json !== undefined) {
+          outputJson(
+            { number, title: issue.title, uri: issueUri, state: 'closed', cid: issue.cid },
+            typeof options.json === 'string' ? options.json : undefined
+          );
+        } else {
+          console.log(`✓ Issue ${displayId} closed`);
+          console.log(`  Title: ${issue.title}`);
+        }
       } catch (error) {
         console.error(
           `✗ Failed to close issue: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -309,7 +347,11 @@ function createReopenCommand(): Command {
   return new Command('reopen')
     .description('Reopen a closed issue')
     .argument('<issue-id>', 'Issue number or rkey')
-    .action(async (issueId: string) => {
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (number, title, uri, state, cid)'
+    )
+    .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
         const client = createApiClient();
@@ -333,11 +375,23 @@ function createReopenCommand(): Command {
         // 4. Resolve issue ID to URI
         const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
 
-        // 5. Reopen issue
+        // 5. Fetch issue details and sequential number
+        const issue = await getIssue({ client, issueUri });
+        const number = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
+
+        // 6. Reopen issue
         await reopenIssue({ client, issueUri });
 
-        // 6. Display success
-        console.log(`✓ Issue ${displayId} reopened`);
+        // 7. Display success
+        if (options.json !== undefined) {
+          outputJson(
+            { number, title: issue.title, uri: issueUri, state: 'open', cid: issue.cid },
+            typeof options.json === 'string' ? options.json : undefined
+          );
+        } else {
+          console.log(`✓ Issue ${displayId} reopened`);
+          console.log(`  Title: ${issue.title}`);
+        }
       } catch (error) {
         console.error(
           `✗ Failed to reopen issue: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -355,7 +409,11 @@ function createDeleteCommand(): Command {
     .description('Delete an issue permanently')
     .argument('<issue-id>', 'Issue number or rkey')
     .option('-f, --force', 'Skip confirmation prompt')
-    .action(async (issueId: string, options: { force?: boolean }) => {
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (number, title, uri, cid)'
+    )
+    .action(async (issueId: string, options: { force?: boolean; json?: string | true }) => {
       // 1. Validate auth
       const client = createApiClient();
       if (!(await client.resumeSession())) {
@@ -372,12 +430,19 @@ function createDeleteCommand(): Command {
         process.exit(1);
       }
 
-      // 3. Build repo AT-URI and resolve issue ID
+      // 3. Build repo AT-URI, resolve issue ID, and fetch issue details
       let issueUri: string;
       let displayId: string;
+      let issueTitle: string;
+      let issueCid: string;
+      let issueNumber: number | undefined;
       try {
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
         ({ uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri));
+        const issue = await getIssue({ client, issueUri });
+        issueTitle = issue.title;
+        issueCid = issue.cid;
+        issueNumber = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
       } catch (error) {
         console.error(
           `✗ Failed to delete issue: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -388,7 +453,7 @@ function createDeleteCommand(): Command {
       // 4. Confirm deletion if not --force (outside try so process.exit(0) propagates cleanly)
       if (!options.force) {
         const confirmed = await confirm({
-          message: `Are you sure you want to delete issue ${displayId}? This cannot be undone.`,
+          message: `Are you sure you want to delete issue ${displayId} "${issueTitle}"? This cannot be undone.`,
           default: false,
         });
 
@@ -401,7 +466,15 @@ function createDeleteCommand(): Command {
       // 5. Delete issue
       try {
         await deleteIssue({ client, issueUri });
-        console.log(`✓ Issue ${displayId} deleted`);
+        if (options.json !== undefined) {
+          outputJson(
+            { number: issueNumber, title: issueTitle, uri: issueUri, cid: issueCid },
+            typeof options.json === 'string' ? options.json : undefined
+          );
+        } else {
+          console.log(`✓ Issue ${displayId} deleted`);
+          console.log(`  Title: ${issueTitle}`);
+        }
       } catch (error) {
         console.error(
           `✗ Failed to delete issue: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -440,7 +513,7 @@ function createCreateCommand(): Command {
     .option('-F, --body-file <path>', 'Read body from file (- for stdin)')
     .option(
       '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (title, body, author, createdAt, uri, cid)'
+      'Output JSON; optionally specify comma-separated fields (number, title, body, author, createdAt, uri, cid)'
     )
     .action(
       async (
@@ -487,9 +560,18 @@ function createCreateCommand(): Command {
             body,
           });
 
-          // 7. Output result
+          // 7. Compute sequential number
+          const { issues: allIssues } = await listIssues({ client, repoAtUri, limit: 100 });
+          const sortedAll = allIssues.sort(
+            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+          );
+          const idx = sortedAll.findIndex((i) => i.uri === issue.uri);
+          const number = idx >= 0 ? idx + 1 : undefined;
+
+          // 8. Output result
           if (options.json !== undefined) {
             const issueData = {
+              number,
               title: issue.title,
               body: issue.body,
               author: issue.author,
@@ -501,8 +583,8 @@ function createCreateCommand(): Command {
             return;
           }
 
-          const rkey = extractRkey(issue.uri);
-          console.log(`\n✓ Issue created: #${rkey}`);
+          const displayNumber = number !== undefined ? `#${number}` : extractRkey(issue.uri);
+          console.log(`\n✓ Issue ${displayNumber} created`);
           console.log(`  Title: ${issue.title}`);
           console.log(`  URI: ${issue.uri}`);
         } catch (error) {

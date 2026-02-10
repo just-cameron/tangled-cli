@@ -55,6 +55,9 @@ describe('issue create command', () => {
 
     // Mock body input
     vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
+
+    // Default listIssues mock (needed for sequential number computation after create)
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [], cursor: undefined });
   });
 
   afterEach(() => {
@@ -76,6 +79,7 @@ describe('issue create command', () => {
 
       vi.mocked(bodyInput.readBodyInput).mockResolvedValue('Test body');
       vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--body', 'Test body']);
@@ -88,7 +92,7 @@ describe('issue create command', () => {
       });
 
       expect(consoleLogSpy).toHaveBeenCalledWith('Creating issue...');
-      expect(consoleLogSpy).toHaveBeenCalledWith('\n✓ Issue created: #abc123');
+      expect(consoleLogSpy).toHaveBeenCalledWith('\n✓ Issue #1 created');
     });
   });
 
@@ -107,6 +111,7 @@ describe('issue create command', () => {
 
       vi.mocked(bodyInput.readBodyInput).mockResolvedValue('Body from file');
       vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
 
       const command = createIssueCommand();
       await command.parseAsync([
@@ -142,6 +147,7 @@ describe('issue create command', () => {
 
       vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
       vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'create', 'Test Issue']);
@@ -263,6 +269,7 @@ describe('issue create command', () => {
 
     it('should output JSON of created issue when --json is passed', async () => {
       vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--json']);
@@ -272,6 +279,7 @@ describe('issue create command', () => {
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
       expect(jsonOutput).toMatchObject({
+        number: 1,
         title: 'Test Issue',
         body: 'Test body',
         author: 'did:plc:abc123',
@@ -282,15 +290,17 @@ describe('issue create command', () => {
 
     it('should output filtered JSON when --json with fields is passed', async () => {
       vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
 
       const command = createIssueCommand();
-      await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--json', 'title,uri']);
+      await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--json', 'number,uri']);
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
       expect(jsonOutput).toEqual({
-        title: 'Test Issue',
+        number: 1,
         uri: 'at://did:plc:abc123/sh.tangled.repo.issue/abc123',
       });
+      expect(jsonOutput).not.toHaveProperty('title');
       expect(jsonOutput).not.toHaveProperty('body');
       expect(jsonOutput).not.toHaveProperty('author');
     });
@@ -937,6 +947,7 @@ describe('issue close command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
   });
 
   afterEach(() => {
@@ -958,6 +969,7 @@ describe('issue close command', () => {
       issueUri: mockIssue.uri,
     });
     expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 closed');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Title: Test Issue');
   });
 
   it('should fail when not authenticated', async () => {
@@ -967,6 +979,38 @@ describe('issue close command', () => {
     await expect(command.parseAsync(['node', 'test', 'close', '1'])).rejects.toThrow(
       'process.exit(1)'
     );
+  });
+
+  describe('JSON output', () => {
+    it('should output JSON when --json is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.closeIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'close', '1', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({
+        number: 1,
+        title: 'Test Issue',
+        uri: mockIssue.uri,
+        state: 'closed',
+        cid: mockIssue.cid,
+      });
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.closeIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'close', '1', '--json', 'number,state']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({ number: 1, state: 'closed' });
+      expect(jsonOutput).not.toHaveProperty('title');
+      expect(jsonOutput).not.toHaveProperty('uri');
+    });
   });
 });
 
@@ -1006,6 +1050,7 @@ describe('issue reopen command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
   });
 
   afterEach(() => {
@@ -1027,6 +1072,7 @@ describe('issue reopen command', () => {
       issueUri: mockIssue.uri,
     });
     expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 reopened');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Title: Test Issue');
   });
 
   it('should fail when not authenticated', async () => {
@@ -1036,6 +1082,37 @@ describe('issue reopen command', () => {
     await expect(command.parseAsync(['node', 'test', 'reopen', '1'])).rejects.toThrow(
       'process.exit(1)'
     );
+  });
+
+  describe('JSON output', () => {
+    it('should output JSON when --json is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.reopenIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'reopen', '1', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({
+        number: 1,
+        title: 'Test Issue',
+        uri: mockIssue.uri,
+        state: 'open',
+        cid: mockIssue.cid,
+      });
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.reopenIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'reopen', '1', '--json', 'number,state']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({ number: 1, state: 'open' });
+      expect(jsonOutput).not.toHaveProperty('title');
+    });
   });
 });
 
@@ -1077,6 +1154,7 @@ describe('issue delete command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
   });
 
   afterEach(() => {
@@ -1098,6 +1176,7 @@ describe('issue delete command', () => {
       issueUri: mockIssue.uri,
     });
     expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 deleted');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Title: Test Issue');
   });
 
   it('should cancel deletion when user declines confirmation', async () => {
@@ -1134,6 +1213,7 @@ describe('issue delete command', () => {
 
     expect(issuesApi.deleteIssue).toHaveBeenCalled();
     expect(consoleLogSpy).toHaveBeenCalledWith('✓ Issue #1 deleted');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Title: Test Issue');
   });
 
   it('should fail when not authenticated', async () => {
@@ -1147,5 +1227,45 @@ describe('issue delete command', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '✗ Not authenticated. Run "tangled auth login" first.'
     );
+  });
+
+  describe('JSON output', () => {
+    it('should output JSON when --json is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.deleteIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'delete', '1', '--force', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({
+        number: 1,
+        title: 'Test Issue',
+        uri: mockIssue.uri,
+        cid: mockIssue.cid,
+      });
+      expect(jsonOutput).not.toHaveProperty('state');
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [mockIssue], cursor: undefined });
+      vi.mocked(issuesApi.deleteIssue).mockResolvedValue(undefined);
+
+      const command = createIssueCommand();
+      await command.parseAsync([
+        'node',
+        'test',
+        'delete',
+        '1',
+        '--force',
+        '--json',
+        'number,title',
+      ]);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({ number: 1, title: 'Test Issue' });
+      expect(jsonOutput).not.toHaveProperty('uri');
+      expect(jsonOutput).not.toHaveProperty('cid');
+    });
   });
 });
