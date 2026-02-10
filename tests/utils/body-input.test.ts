@@ -1,8 +1,25 @@
+import { EventEmitter } from 'node:events';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import * as process from 'node:process';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readBodyInput } from '../../src/utils/body-input.js';
+
+// Mutable reference updated per stdin test; null means fall through to real stdin
+let currentMockStdin: (EventEmitter & { resume: () => void }) | null = null;
+
+// Mock node:process so process.stdin can be swapped per test without needing
+// to redefine the non-configurable property on the real process object
+vi.mock('node:process', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:process')>();
+  return new Proxy(actual as object, {
+    get(target, prop, receiver) {
+      if (prop === 'stdin' && currentMockStdin !== null) {
+        return currentMockStdin;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+});
 
 describe('readBodyInput', () => {
   describe('direct string input', () => {
@@ -82,13 +99,43 @@ describe('readBodyInput', () => {
   });
 
   describe('stdin input', () => {
-    // Note: Stdin reading is tested via integration tests
-    // Mocking process.stdin is complex and unreliable in unit tests
-    // The implementation is straightforward and covered by:
-    // 1. File I/O tests (same event-driven patterns)
-    // 2. Integration tests with real stdin
-    it.skip('stdin reading is tested via integration tests', () => {
-      // Placeholder to document testing approach
+    afterEach(() => {
+      currentMockStdin = null;
+    });
+
+    it('should read content from stdin when - is provided', async () => {
+      const mockStdin = Object.assign(new EventEmitter(), { resume: vi.fn() });
+      currentMockStdin = mockStdin;
+
+      // readBodyInput registers handlers synchronously inside the Promise
+      // constructor before returning, so we can emit immediately after
+      const readPromise = readBodyInput(undefined, '-');
+      mockStdin.emit('data', Buffer.from('hello from stdin'));
+      mockStdin.emit('end');
+
+      expect(await readPromise).toBe('hello from stdin');
+    });
+
+    it('should concatenate multiple chunks from stdin', async () => {
+      const mockStdin = Object.assign(new EventEmitter(), { resume: vi.fn() });
+      currentMockStdin = mockStdin;
+
+      const readPromise = readBodyInput(undefined, '-');
+      mockStdin.emit('data', Buffer.from('chunk1'));
+      mockStdin.emit('data', Buffer.from(' chunk2'));
+      mockStdin.emit('end');
+
+      expect(await readPromise).toBe('chunk1 chunk2');
+    });
+
+    it('should throw when stdin emits an error', async () => {
+      const mockStdin = Object.assign(new EventEmitter(), { resume: vi.fn() });
+      currentMockStdin = mockStdin;
+
+      const readPromise = readBodyInput(undefined, '-');
+      mockStdin.emit('error', new Error('read error'));
+
+      await expect(readPromise).rejects.toThrow('Failed to read from stdin: read error');
     });
   });
 
