@@ -15,7 +15,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
+    "format": "biome check --write .",
     "typecheck": "tsc --noEmit",
     "prepublishOnly": "npm run build",
     "codegen": "npx lex gen-api --yes ./src/lexicon ./lexicons/sh/tangled/**/*.json && node scripts/fix-lexicon-imports.js",
