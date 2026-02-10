@@ -246,3 +246,203 @@ describe('issue create command', () => {
     });
   });
 });
+
+describe('issue list command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  let processExitSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    // Mock console methods
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as never;
+    processExitSpy = vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    // Mock API client
+    mockClient = {
+      resumeSession: vi.fn(async () => true),
+    } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    // Mock context
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    // Mock AT-URI builder
+    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(
+      'at://did:plc:abc123/sh.tangled.repo/xyz789'
+    );
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  describe('list issues', () => {
+    it('should list issues successfully', async () => {
+      const mockIssues: IssueWithMetadata[] = [
+        {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+          title: 'First Issue',
+          createdAt: new Date('2024-01-01').toISOString(),
+          uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+          cid: 'bafyrei1',
+          author: 'did:plc:abc123',
+        },
+        {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+          title: 'Second Issue',
+          createdAt: new Date('2024-01-02').toISOString(),
+          uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue2',
+          cid: 'bafyrei2',
+          author: 'did:plc:abc123',
+        },
+      ];
+
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: mockIssues,
+        cursor: undefined,
+      });
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list']);
+
+      expect(issuesApi.listIssues).toHaveBeenCalledWith({
+        client: mockClient,
+        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        limit: 50,
+      });
+
+      expect(consoleLogSpy).toHaveBeenCalledWith('\nFound 2 issues:\n');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  #issue1  First Issue');
+      expect(consoleLogSpy).toHaveBeenCalledWith('  #issue2  Second Issue');
+    });
+
+    it('should handle custom limit', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [],
+        cursor: undefined,
+      });
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list', '--limit', '25']);
+
+      expect(issuesApi.listIssues).toHaveBeenCalledWith({
+        client: mockClient,
+        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        limit: 25,
+      });
+    });
+
+    it('should handle empty issue list', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [],
+        cursor: undefined,
+      });
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith('No issues found for this repository.');
+    });
+  });
+
+  describe('authentication required', () => {
+    it('should fail when not authenticated', async () => {
+      vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+
+      const command = createIssueCommand();
+
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
+        'process.exit(1)'
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '✗ Not authenticated. Run "tangled auth login" first.'
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('context required', () => {
+    it('should fail when not in a Tangled repository', async () => {
+      vi.mocked(context.getCurrentRepoContext).mockResolvedValue(null);
+
+      const command = createIssueCommand();
+
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
+        'process.exit(1)'
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Not in a Tangled repository');
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('validation errors', () => {
+    it('should fail with invalid limit (too low)', async () => {
+      const command = createIssueCommand();
+
+      await expect(command.parseAsync(['node', 'test', 'list', '--limit', '0'])).rejects.toThrow(
+        'process.exit(1)'
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '✗ Invalid limit. Must be between 1 and 100.'
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should fail with invalid limit (too high)', async () => {
+      const command = createIssueCommand();
+
+      await expect(
+        command.parseAsync(['node', 'test', 'list', '--limit', '101'])
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '✗ Invalid limit. Must be between 1 and 100.'
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+
+    it('should fail with non-numeric limit', async () => {
+      const command = createIssueCommand();
+
+      await expect(
+        command.parseAsync(['node', 'test', 'list', '--limit', 'abc'])
+      ).rejects.toThrow('process.exit(1)');
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        '✗ Invalid limit. Must be between 1 and 100.'
+      );
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+
+  describe('API errors', () => {
+    it('should handle API errors gracefully', async () => {
+      vi.mocked(issuesApi.listIssues).mockRejectedValue(new Error('Network error'));
+
+      const command = createIssueCommand();
+
+      await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow(
+        'process.exit(1)'
+      );
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('✗ Failed to list issues: Network error');
+      expect(processExitSpy).toHaveBeenCalledWith(1);
+    });
+  });
+});
