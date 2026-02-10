@@ -37,12 +37,14 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 ## Issue Management
 
-- [ ] Implement `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]` command.
-- [ ] Implement `tangled issue list [--json "id,title"]` command.
+- [x] Implement `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]` command.
+- [x] Implement `tangled issue list [--json "id,title"]` command.
   - [ ] Support `--json` output with field filtering.
 - [ ] Migrate this TODO list into Tangled issues once issue creation is implemented. (note defects and address blocking features as needed).
   - [ ] Create phases in this todo list, and then use `- [ ]` tasks in the issue descriptions.
   - [ ] Remove TODO.md once all tasks are migrated to issues.
+  - [ ] Update README.md to link to the issue board for contribution guidelines and project status instead of this TODO list.
+  - [ ] Create CLI_FEEDBACK.md with learnings from using the CLI and complete the issue creation process and close the loop on dogfooding the CLI for this project.
 
 ## Pull Request Management
 
