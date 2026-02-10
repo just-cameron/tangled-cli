@@ -64,25 +64,42 @@ export async function resolveHandleToDid(
  * @param ownerDidOrHandle - DID (e.g., "did:plc:abc") or handle (e.g., "mark.bsky.social")
  * @param repoName - Repository name
  * @param client - Authenticated API client
- * @returns AT-URI string (e.g., "at://did:plc:abc/sh.tangled.repo/repoName")
+ * @returns AT-URI string (e.g., "at://did:plc:abc/sh.tangled.repo/3mef23waqwq22")
+ * @throws Error if repository not found
  */
 export async function buildRepoAtUri(
   ownerDidOrHandle: string,
   repoName: string,
   client: TangledApiClient
 ): Promise<string> {
-  // Check if owner is already a DID
+  // Resolve owner to DID
   const isDid = ownerDidOrHandle.startsWith('did:');
+  const did = isDid ? ownerDidOrHandle : await resolveHandleToDid(ownerDidOrHandle, client);
 
-  let did: string;
-  if (isDid) {
-    did = ownerDidOrHandle;
-  } else {
-    // Resolve handle to DID
-    did = await resolveHandleToDid(ownerDidOrHandle, client);
+  try {
+    // Query for sh.tangled.repo records
+    const response = await client.getAgent().com.atproto.repo.listRecords({
+      repo: did,
+      collection: 'sh.tangled.repo',
+      limit: 100, // Reasonable limit for most users
+    });
+
+    // Find the record matching the repo name
+    const repoRecord = response.data.records.find((record) => {
+      const recordData = record.value as { name?: string };
+      return recordData.name === repoName;
+    });
+
+    if (!repoRecord) {
+      throw new Error(`Repository '${repoName}' not found for ${ownerDidOrHandle}`);
+    }
+
+    // Return the record's URI (which includes the correct rkey)
+    return repoRecord.uri;
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to resolve repository AT-URI: ${error.message}`);
+    }
+    throw new Error('Failed to resolve repository AT-URI: Unknown error');
   }
-
-  // Construct AT-URI for repository
-  // Format: at://{did}/sh.tangled.repo/{repoName}
-  return `at://${did}/sh.tangled.repo/${repoName}`;
 }

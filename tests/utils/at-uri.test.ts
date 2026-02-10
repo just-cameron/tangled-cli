@@ -163,15 +163,52 @@ describe('buildRepoAtUri', () => {
     mockClient = createMockClient();
   });
 
-  it('should build AT-URI from DID', async () => {
+  it('should query PDS and use repo record rkey', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/3mef23waqwq22',
+            value: { name: 'my-repo', description: 'Test repo' },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
     const result = await buildRepoAtUri('did:plc:abc123', 'my-repo', mockClient);
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/my-repo');
+    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/3mef23waqwq22');
+    expect(mockListRecords).toHaveBeenCalledWith({
+      repo: 'did:plc:abc123',
+      collection: 'sh.tangled.repo',
+      limit: 100,
+    });
   });
 
-  it('should build AT-URI from handle', async () => {
+  it('should resolve handle then query for repo record', async () => {
     const mockResolve = vi.fn().mockResolvedValue({
       data: { did: 'did:plc:abc123' },
+    });
+
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+            value: { name: 'my-repo' },
+          },
+        ],
+      },
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
@@ -180,20 +217,84 @@ describe('buildRepoAtUri', () => {
           identity: {
             resolveHandle: mockResolve,
           },
+          repo: {
+            listRecords: mockListRecords,
+          },
         },
       },
     } as never);
 
     const result = await buildRepoAtUri('mark.bsky.social', 'my-repo', mockClient);
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/my-repo');
+    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/xyz789');
     expect(mockResolve).toHaveBeenCalledWith({ handle: 'mark.bsky.social' });
+    expect(mockListRecords).toHaveBeenCalledWith({
+      repo: 'did:plc:abc123',
+      collection: 'sh.tangled.repo',
+      limit: 100,
+    });
   });
 
-  it('should handle repository names with special characters', async () => {
-    const result = await buildRepoAtUri('did:plc:abc123', 'repo-name_123', mockClient);
+  it('should find correct repo among multiple records', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/aaa111',
+            value: { name: 'other-repo' },
+          },
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/bbb222',
+            value: { name: 'target-repo' },
+          },
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/ccc333',
+            value: { name: 'another-repo' },
+          },
+        ],
+      },
+    });
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/repo-name_123');
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
+    const result = await buildRepoAtUri('did:plc:abc123', 'target-repo', mockClient);
+
+    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/bbb222');
+  });
+
+  it('should throw error when repository not found', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+            value: { name: 'different-repo' },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
+    await expect(buildRepoAtUri('did:plc:abc123', 'nonexistent-repo', mockClient)).rejects.toThrow(
+      "Repository 'nonexistent-repo' not found for did:plc:abc123"
+    );
   });
 
   it('should throw error when handle resolution fails', async () => {
@@ -211,6 +312,24 @@ describe('buildRepoAtUri', () => {
 
     await expect(buildRepoAtUri('mark.bsky.social', 'my-repo', mockClient)).rejects.toThrow(
       "Failed to resolve handle 'mark.bsky.social': Resolution failed"
+    );
+  });
+
+  it('should throw error when listRecords fails', async () => {
+    const mockListRecords = vi.fn().mockRejectedValue(new Error('API error'));
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
+    await expect(buildRepoAtUri('did:plc:abc123', 'my-repo', mockClient)).rejects.toThrow(
+      'Failed to resolve repository AT-URI: API error'
     );
   });
 });
