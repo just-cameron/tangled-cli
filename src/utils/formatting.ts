@@ -25,3 +25,47 @@ export function formatDate(dateString: string): string {
 export function formatIssueState(state: 'open' | 'closed'): string {
   return state === 'open' ? '[OPEN]' : '[CLOSED]';
 }
+
+/**
+ * Pick specific fields from an object, omitting fields not present in the object
+ */
+function pickFields(obj: Record<string, unknown>, fields: string[]): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const field of fields) {
+    if (field in obj) {
+      result[field] = obj[field];
+    }
+  }
+  return result;
+}
+
+/**
+ * Output data as JSON to stdout, following GitHub CLI conventions.
+ *
+ * @param data - The data to output (object or array of objects)
+ * @param fields - Comma-separated field names to include; omit for all fields
+ */
+export function outputJson(
+  data: Record<string, unknown> | Record<string, unknown>[],
+  fields?: string
+): void {
+  if (fields) {
+    const fieldList = fields
+      .split(',')
+      .map((f) => f.trim())
+      .filter(Boolean);
+    if (Array.isArray(data)) {
+      console.log(
+        JSON.stringify(
+          data.map((item) => pickFields(item, fieldList)),
+          null,
+          2
+        )
+      );
+    } else {
+      console.log(JSON.stringify(pickFields(data, fieldList), null, 2));
+    }
+  } else {
+    console.log(JSON.stringify(data, null, 2));
+  }
+}

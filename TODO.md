@@ -39,7 +39,7 @@ This document outlines the development tasks for the Tangled CLI, based on the `
 
 - [x] Implement `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]` command.
 - [x] Implement `tangled issue list [--json "id,title"]` command.
-  - [ ] Support `--json` output with field filtering.
+  - [x] Support `--json` output with field filtering.
 - [ ] Migrate this TODO list into Tangled issues once issue creation is implemented. (note defects and address blocking features as needed).
   - [ ] Create phases in this todo list, and then use `- [ ]` tasks in the issue descriptions.
   - [ ] Remove TODO.md once all tasks are migrated to issues.

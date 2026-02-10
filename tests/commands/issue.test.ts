@@ -248,6 +248,53 @@ describe('issue create command', () => {
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
+
+  describe('JSON output', () => {
+    const mockIssue: IssueWithMetadata = {
+      $type: 'sh.tangled.repo.issue',
+      repo: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+      title: 'Test Issue',
+      body: 'Test body',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      uri: 'at://did:plc:abc123/sh.tangled.repo.issue/abc123',
+      cid: 'bafyreiabc123',
+      author: 'did:plc:abc123',
+    };
+
+    it('should output JSON of created issue when --json is passed', async () => {
+      vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--json']);
+
+      // Should NOT print human-readable messages
+      expect(consoleLogSpy).not.toHaveBeenCalledWith('Creating issue...');
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toMatchObject({
+        title: 'Test Issue',
+        body: 'Test body',
+        author: 'did:plc:abc123',
+        uri: 'at://did:plc:abc123/sh.tangled.repo.issue/abc123',
+        cid: 'bafyreiabc123',
+      });
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      vi.mocked(issuesApi.createIssue).mockResolvedValue(mockIssue);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'create', 'Test Issue', '--json', 'title,uri']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({
+        title: 'Test Issue',
+        uri: 'at://did:plc:abc123/sh.tangled.repo.issue/abc123',
+      });
+      expect(jsonOutput).not.toHaveProperty('body');
+      expect(jsonOutput).not.toHaveProperty('author');
+    });
+  });
 });
 
 describe('issue list command', () => {
@@ -435,6 +482,73 @@ describe('issue list command', () => {
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
   });
+
+  describe('JSON output', () => {
+    const mockIssues: IssueWithMetadata[] = [
+      {
+        $type: 'sh.tangled.repo.issue',
+        repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        title: 'First Issue',
+        body: 'First body',
+        createdAt: new Date('2024-01-01').toISOString(),
+        uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+        cid: 'bafyrei1',
+        author: 'did:plc:abc123',
+      },
+      {
+        $type: 'sh.tangled.repo.issue',
+        repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        title: 'Second Issue',
+        createdAt: new Date('2024-01-02').toISOString(),
+        uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue2',
+        cid: 'bafyrei2',
+        author: 'did:plc:abc123',
+      },
+    ];
+
+    beforeEach(() => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: mockIssues,
+        cursor: undefined,
+      });
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+    });
+
+    it('should output JSON array when --json is passed', async () => {
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(Array.isArray(jsonOutput)).toBe(true);
+      expect(jsonOutput).toHaveLength(2);
+      expect(jsonOutput[0]).toMatchObject({
+        number: 1,
+        title: 'First Issue',
+        state: 'open',
+        author: 'did:plc:abc123',
+      });
+      expect(jsonOutput[1]).toMatchObject({ number: 2, title: 'Second Issue' });
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list', '--json', 'number,title,state']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput[0]).toEqual({ number: 1, title: 'First Issue', state: 'open' });
+      expect(jsonOutput[0]).not.toHaveProperty('author');
+      expect(jsonOutput[0]).not.toHaveProperty('uri');
+    });
+
+    it('should output empty JSON array when no issues exist', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({ issues: [], cursor: undefined });
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'list', '--json']);
+
+      expect(consoleLogSpy).toHaveBeenCalledWith('[]');
+    });
+  });
 });
 
 describe('issue view command', () => {
@@ -578,6 +692,47 @@ describe('issue view command', () => {
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Issue #99 not found'));
   });
+
+  describe('JSON output', () => {
+    it('should output JSON when --json is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [mockIssue],
+        cursor: undefined,
+      });
+      vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'view', '1', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toMatchObject({
+        title: 'Test Issue',
+        body: 'Issue body',
+        state: 'open',
+        author: 'did:plc:abc123',
+        uri: mockIssue.uri,
+        cid: mockIssue.cid,
+      });
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [mockIssue],
+        cursor: undefined,
+      });
+      vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('closed');
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'view', '1', '--json', 'title,state']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({ title: 'Test Issue', state: 'closed' });
+      expect(jsonOutput).not.toHaveProperty('body');
+      expect(jsonOutput).not.toHaveProperty('author');
+    });
+  });
 });
 
 describe('issue edit command', () => {
@@ -691,6 +846,58 @@ describe('issue edit command', () => {
     expect(consoleErrorSpy).toHaveBeenCalledWith(
       '✗ Not authenticated. Run "tangled auth login" first.'
     );
+  });
+
+  describe('JSON output', () => {
+    it('should output JSON of updated issue when --json is passed', async () => {
+      const updatedIssue = { ...mockIssue, title: 'New Title' };
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [mockIssue],
+        cursor: undefined,
+      });
+      vi.mocked(issuesApi.updateIssue).mockResolvedValue(updatedIssue);
+
+      const command = createIssueCommand();
+      await command.parseAsync(['node', 'test', 'edit', '1', '--title', 'New Title', '--json']);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toMatchObject({
+        title: 'New Title',
+        author: 'did:plc:abc123',
+        uri: mockIssue.uri,
+        cid: mockIssue.cid,
+      });
+      // Human-readable messages should NOT appear
+      expect(consoleLogSpy).not.toHaveBeenCalledWith('✓ Issue #1 updated');
+    });
+
+    it('should output filtered JSON when --json with fields is passed', async () => {
+      const updatedIssue = { ...mockIssue, title: 'New Title' };
+      vi.mocked(issuesApi.listIssues).mockResolvedValue({
+        issues: [mockIssue],
+        cursor: undefined,
+      });
+      vi.mocked(issuesApi.updateIssue).mockResolvedValue(updatedIssue);
+
+      const command = createIssueCommand();
+      await command.parseAsync([
+        'node',
+        'test',
+        'edit',
+        '1',
+        '--title',
+        'New Title',
+        '--json',
+        'title,uri',
+      ]);
+
+      const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+      expect(jsonOutput).toEqual({
+        title: 'New Title',
+        uri: mockIssue.uri,
+      });
+      expect(jsonOutput).not.toHaveProperty('author');
+    });
   });
 });
 

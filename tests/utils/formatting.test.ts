@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { formatDate } from '../../src/utils/formatting.js';
+import { formatDate, outputJson } from '../../src/utils/formatting.js';
 
 describe('formatDate', () => {
   beforeEach(() => {
@@ -79,5 +79,68 @@ describe('formatDate', () => {
 
     // Should use locale date string
     expect(formatted).toMatch(/\d{1,2}\/\d{1,2}\/\d{4}/);
+  });
+});
+
+describe('outputJson', () => {
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should output all fields of an object when no fields specified', () => {
+    const data = { title: 'Test', state: 'open', author: 'did:plc:abc' };
+    outputJson(data);
+    expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify(data, null, 2));
+  });
+
+  it('should output only specified fields of an object', () => {
+    const data = { title: 'Test', state: 'open', author: 'did:plc:abc', cid: 'bafyrei1' };
+    outputJson(data, 'title,state');
+    const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+    expect(output).toEqual({ title: 'Test', state: 'open' });
+    expect(output).not.toHaveProperty('author');
+    expect(output).not.toHaveProperty('cid');
+  });
+
+  it('should output all fields of an array when no fields specified', () => {
+    const data = [
+      { title: 'First', state: 'open' },
+      { title: 'Second', state: 'closed' },
+    ];
+    outputJson(data);
+    expect(consoleLogSpy).toHaveBeenCalledWith(JSON.stringify(data, null, 2));
+  });
+
+  it('should output only specified fields of an array', () => {
+    const data = [
+      { title: 'First', state: 'open', author: 'did:plc:abc' },
+      { title: 'Second', state: 'closed', author: 'did:plc:xyz' },
+    ];
+    outputJson(data, 'title,state');
+    const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+    expect(output).toEqual([
+      { title: 'First', state: 'open' },
+      { title: 'Second', state: 'closed' },
+    ]);
+  });
+
+  it('should silently omit fields not present in the object', () => {
+    const data = { title: 'Test', state: 'open' };
+    outputJson(data, 'title,nonexistent');
+    const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+    expect(output).toEqual({ title: 'Test' });
+  });
+
+  it('should trim whitespace from field names', () => {
+    const data = { title: 'Test', state: 'open' };
+    outputJson(data, ' title , state ');
+    const output = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
+    expect(output).toEqual({ title: 'Test', state: 'open' });
   });
 });

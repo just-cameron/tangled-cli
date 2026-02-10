@@ -16,7 +16,7 @@ import {
 import { buildRepoAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
-import { formatDate, formatIssueState } from '../utils/formatting.js';
+import { formatDate, formatIssueState, outputJson } from '../utils/formatting.js';
 import { validateIssueBody, validateIssueTitle } from '../utils/validation.js';
 
 /**
@@ -93,7 +93,11 @@ function createViewCommand(): Command {
   return new Command('view')
     .description('View details of a specific issue')
     .argument('<issue-id>', 'Issue number (e.g., 1, #2) or rkey')
-    .action(async (issueId: string) => {
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (title, body, state, author, createdAt, uri, cid)'
+    )
+    .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
         const client = createApiClient();
@@ -123,7 +127,21 @@ function createViewCommand(): Command {
         // 6. Fetch issue state
         const state = await getIssueState({ client, issueUri: issue.uri });
 
-        // 7. Display issue details
+        // 7. Output result
+        if (options.json !== undefined) {
+          const issueData = {
+            title: issue.title,
+            body: issue.body,
+            state,
+            author: issue.author,
+            createdAt: issue.createdAt,
+            uri: issue.uri,
+            cid: issue.cid,
+          };
+          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
+          return;
+        }
+
         console.log(`\nIssue ${displayId} ${formatIssueState(state)}`);
         console.log(`Title: ${issue.title}`);
         console.log(`Author: ${issue.author}`);
@@ -156,8 +174,15 @@ function createEditCommand(): Command {
     .option('-t, --title <string>', 'New issue title')
     .option('-b, --body <string>', 'New issue body text')
     .option('-F, --body-file <path>', 'Read body from file (- for stdin)')
+    .option(
+      '--json [fields]',
+      'Output JSON of the updated issue; optionally specify comma-separated fields (title, body, author, createdAt, uri, cid)'
+    )
     .action(
-      async (issueId: string, options: { title?: string; body?: string; bodyFile?: string }) => {
+      async (
+        issueId: string,
+        options: { title?: string; body?: string; bodyFile?: string; json?: string | true }
+      ) => {
         try {
           // 1. Validate at least one option provided
           if (!options.title && !options.body && !options.bodyFile) {
@@ -195,14 +220,27 @@ function createEditCommand(): Command {
           const validBody = body !== undefined ? validateIssueBody(body) : undefined;
 
           // 8. Update issue
-          await updateIssue({
+          const updatedIssue = await updateIssue({
             client,
             issueUri,
             title: validTitle,
             body: validBody,
           });
 
-          // 9. Display success
+          // 9. Output result
+          if (options.json !== undefined) {
+            const issueData = {
+              title: updatedIssue.title,
+              body: updatedIssue.body,
+              author: updatedIssue.author,
+              createdAt: updatedIssue.createdAt,
+              uri: updatedIssue.uri,
+              cid: updatedIssue.cid,
+            };
+            outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
+            return;
+          }
+
           const updated: string[] = [];
           if (validTitle !== undefined) updated.push('title');
           if (validBody !== undefined) updated.push('body');
@@ -400,57 +438,81 @@ function createCreateCommand(): Command {
     .argument('<title>', 'Issue title')
     .option('-b, --body <string>', 'Issue body text')
     .option('-F, --body-file <path>', 'Read body from file (- for stdin)')
-    .action(async (title: string, options: { body?: string; bodyFile?: string }) => {
-      try {
-        // 1. Validate auth
-        const client = createApiClient();
-        if (!(await client.resumeSession())) {
-          console.error('✗ Not authenticated. Run "tangled auth login" first.');
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (title, body, author, createdAt, uri, cid)'
+    )
+    .action(
+      async (
+        title: string,
+        options: { body?: string; bodyFile?: string; json?: string | true }
+      ) => {
+        try {
+          // 1. Validate auth
+          const client = createApiClient();
+          if (!(await client.resumeSession())) {
+            console.error('✗ Not authenticated. Run "tangled auth login" first.');
+            process.exit(1);
+          }
+
+          // 2. Get repo context
+          const context = await getCurrentRepoContext();
+          if (!context) {
+            console.error('✗ Not in a Tangled repository');
+            console.error('\nTo use this repository with Tangled, add a remote:');
+            console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
+            process.exit(1);
+          }
+
+          // 3. Validate title
+          const validTitle = validateIssueTitle(title);
+
+          // 4. Handle body input
+          const body = await readBodyInput(options.body, options.bodyFile);
+          if (body !== undefined) {
+            validateIssueBody(body);
+          }
+
+          // 5. Build repo AT-URI
+          const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+
+          // 6. Create issue (suppress progress message in JSON mode)
+          if (options.json === undefined) {
+            console.log('Creating issue...');
+          }
+          const issue = await createIssue({
+            client,
+            repoAtUri,
+            title: validTitle,
+            body,
+          });
+
+          // 7. Output result
+          if (options.json !== undefined) {
+            const issueData = {
+              title: issue.title,
+              body: issue.body,
+              author: issue.author,
+              createdAt: issue.createdAt,
+              uri: issue.uri,
+              cid: issue.cid,
+            };
+            outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
+            return;
+          }
+
+          const rkey = extractRkey(issue.uri);
+          console.log(`\n✓ Issue created: #${rkey}`);
+          console.log(`  Title: ${issue.title}`);
+          console.log(`  URI: ${issue.uri}`);
+        } catch (error) {
+          console.error(
+            `✗ Failed to create issue: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
           process.exit(1);
         }
-
-        // 2. Get repo context
-        const context = await getCurrentRepoContext();
-        if (!context) {
-          console.error('✗ Not in a Tangled repository');
-          console.error('\nTo use this repository with Tangled, add a remote:');
-          console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
-          process.exit(1);
-        }
-
-        // 3. Validate title
-        const validTitle = validateIssueTitle(title);
-
-        // 4. Handle body input
-        const body = await readBodyInput(options.body, options.bodyFile);
-        if (body !== undefined) {
-          validateIssueBody(body);
-        }
-
-        // 5. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-
-        // 6. Create issue
-        console.log('Creating issue...');
-        const issue = await createIssue({
-          client,
-          repoAtUri,
-          title: validTitle,
-          body,
-        });
-
-        // 7. Display success
-        const rkey = extractRkey(issue.uri);
-        console.log(`\n✓ Issue created: #${rkey}`);
-        console.log(`  Title: ${issue.title}`);
-        console.log(`  URI: ${issue.uri}`);
-      } catch (error) {
-        console.error(
-          `✗ Failed to create issue: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        process.exit(1);
       }
-    });
+    );
 }
 
 /**
@@ -460,7 +522,11 @@ function createListCommand(): Command {
   return new Command('list')
     .description('List issues for the current repository')
     .option('-l, --limit <number>', 'Maximum number of issues to fetch', '50')
-    .action(async (options: { limit: string }) => {
+    .option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (number, title, body, state, author, createdAt, uri, cid)'
+    )
+    .action(async (options: { limit: string; json?: string | true }) => {
       try {
         // 1. Validate auth
         const client = createApiClient();
@@ -494,9 +560,13 @@ function createListCommand(): Command {
           limit,
         });
 
-        // 5. Display results
+        // 5. Handle empty results
         if (issues.length === 0) {
-          console.log('No issues found for this repository.');
+          if (options.json !== undefined) {
+            console.log('[]');
+          } else {
+            console.log('No issues found for this repository.');
+          }
           return;
         }
 
@@ -505,21 +575,35 @@ function createListCommand(): Command {
           (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
         );
 
-        console.log(
-          `\nFound ${sortedIssues.length} issue${sortedIssues.length === 1 ? '' : 's'}:\n`
+        // Build issue data with states (in parallel for performance)
+        const issueData = await Promise.all(
+          sortedIssues.map(async (issue, i) => {
+            const state = await getIssueState({ client, issueUri: issue.uri });
+            return {
+              number: i + 1,
+              title: issue.title,
+              body: issue.body,
+              state,
+              author: issue.author,
+              createdAt: issue.createdAt,
+              uri: issue.uri,
+              cid: issue.cid,
+            };
+          })
         );
 
-        // Fetch and display each issue with number and state
-        for (let i = 0; i < sortedIssues.length; i++) {
-          const issue = sortedIssues[i];
-          const num = i + 1;
-          const date = formatDate(issue.createdAt);
+        // 6. Output results
+        if (options.json !== undefined) {
+          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
+          return;
+        }
 
-          // Get issue state
-          const state = await getIssueState({ client, issueUri: issue.uri });
-          const stateBadge = formatIssueState(state);
+        console.log(`\nFound ${issueData.length} issue${issueData.length === 1 ? '' : 's'}:\n`);
 
-          console.log(`  #${num}  ${stateBadge}  ${issue.title}`);
+        for (const item of issueData) {
+          const stateBadge = formatIssueState(item.state);
+          const date = formatDate(item.createdAt);
+          console.log(`  #${item.number}  ${stateBadge}  ${item.title}`);
           console.log(`              Created ${date}`);
           console.log();
         }
