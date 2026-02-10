@@ -35,7 +35,10 @@ export const appPasswordSchema: z.ZodString = z
 /**
  * Validation schema for identifier (handle or DID)
  */
-export const identifierSchema: z.ZodUnion<[typeof handleSchema, typeof didSchema]> = z.union([handleSchema, didSchema]);
+export const identifierSchema: z.ZodUnion<[typeof handleSchema, typeof didSchema]> = z.union([
+  handleSchema,
+  didSchema,
+]);
 
 /**
  * Validate a handle

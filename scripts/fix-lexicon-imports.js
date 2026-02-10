@@ -8,7 +8,7 @@
  * 3. Ensures proper TypeScript compatibility with NodeNext module resolution
  */
 
-import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Recursively find all .ts files in a directory
