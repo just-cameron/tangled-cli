@@ -81,6 +81,22 @@ export interface DeleteIssueParams {
 }
 
 /**
+ * Parameters for getting issue state
+ */
+export interface GetIssueStateParams {
+  client: TangledApiClient;
+  issueUri: string;
+}
+
+/**
+ * Parameters for reopening an issue
+ */
+export interface ReopenIssueParams {
+  client: TangledApiClient;
+  issueUri: string;
+}
+
+/**
  * Parse and validate an issue AT-URI
  * @throws Error if URI is invalid or missing rkey
  * @returns Parsed URI components
@@ -352,5 +368,91 @@ export async function deleteIssue(params: DeleteIssueParams): Promise<void> {
       throw new Error(`Failed to delete issue: ${error.message}`);
     }
     throw new Error('Failed to delete issue: Unknown error');
+  }
+}
+
+/**
+ * Get the state of an issue (open or closed)
+ * @returns 'open' or 'closed' (defaults to 'open' if no state record exists)
+ */
+export async function getIssueState(params: GetIssueStateParams): Promise<'open' | 'closed'> {
+  const { client, issueUri } = params;
+
+  // Validate authentication
+  await requireAuth(client);
+
+  // Parse issue URI to get author DID
+  const { did } = parseIssueUri(issueUri);
+
+  try {
+    // Query state records for the issue author
+    const response = await client.getAgent().com.atproto.repo.listRecords({
+      repo: did,
+      collection: 'sh.tangled.repo.issue.state',
+      limit: 100,
+    });
+
+    // Filter to find state records for this specific issue
+    const stateRecords = response.data.records.filter((record) => {
+      const stateData = record.value as { issue?: string };
+      return stateData.issue === issueUri;
+    });
+
+    if (stateRecords.length === 0) {
+      // No state record found - default to open
+      return 'open';
+    }
+
+    // Get the most recent state record (AT Protocol records are sorted by index)
+    const latestState = stateRecords[stateRecords.length - 1];
+    const stateData = latestState.value as {
+      state?: 'sh.tangled.repo.issue.state.open' | 'sh.tangled.repo.issue.state.closed';
+    };
+
+    // Return 'open' or 'closed' based on the state type
+    if (stateData.state === 'sh.tangled.repo.issue.state.closed') {
+      return 'closed';
+    }
+
+    return 'open';
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to get issue state: ${error.message}`);
+    }
+    throw new Error('Failed to get issue state: Unknown error');
+  }
+}
+
+/**
+ * Reopen a closed issue by creating an open state record
+ */
+export async function reopenIssue(params: ReopenIssueParams): Promise<void> {
+  const { client, issueUri } = params;
+
+  // Validate authentication
+  const session = await requireAuth(client);
+
+  try {
+    // Verify issue exists
+    await getIssue({ client, issueUri });
+
+    // Create state record with open state
+    const stateRecord = {
+      $type: 'sh.tangled.repo.issue.state',
+      issue: issueUri,
+      state: 'sh.tangled.repo.issue.state.open',
+    };
+
+    // Create state record
+    await client.getAgent().com.atproto.repo.createRecord({
+      repo: session.did,
+      collection: 'sh.tangled.repo.issue.state',
+      record: stateRecord,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to reopen issue: ${error.message}`);
+    }
+    throw new Error('Failed to reopen issue: Unknown error');
   }
 }

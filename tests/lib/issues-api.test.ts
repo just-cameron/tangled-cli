@@ -5,7 +5,9 @@ import {
   createIssue,
   deleteIssue,
   getIssue,
+  getIssueState,
   listIssues,
+  reopenIssue,
   updateIssue,
 } from '../../src/lib/issues-api.js';
 
@@ -657,6 +659,206 @@ describe('deleteIssue', () => {
       deleteIssue({
         client: mockClient,
         issueUri: 'at://did:plc:test123/sh.tangled.repo.issue/issue1',
+      })
+    ).rejects.toThrow('Must be authenticated');
+  });
+});
+
+describe('getIssueState', () => {
+  let mockClient: TangledApiClient;
+
+  beforeEach(() => {
+    mockClient = createMockClient(true);
+  });
+
+  it('should return open when no state records exist', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: { records: [] },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await getIssueState({
+      client: mockClient,
+      issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+    });
+
+    expect(result).toBe('open');
+    expect(mockListRecords).toHaveBeenCalledWith({
+      repo: 'did:plc:owner',
+      collection: 'sh.tangled.repo.issue.state',
+      limit: 100,
+    });
+  });
+
+  it('should return closed when latest state record is closed', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
+            cid: 'cid1',
+            value: {
+              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+              state: 'sh.tangled.repo.issue.state.closed',
+            },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await getIssueState({
+      client: mockClient,
+      issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+    });
+
+    expect(result).toBe('closed');
+  });
+
+  it('should return open when latest state record is open', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
+            cid: 'cid1',
+            value: {
+              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+              state: 'sh.tangled.repo.issue.state.closed',
+            },
+          },
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state2',
+            cid: 'cid2',
+            value: {
+              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+              state: 'sh.tangled.repo.issue.state.open',
+            },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await getIssueState({
+      client: mockClient,
+      issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+    });
+
+    expect(result).toBe('open');
+  });
+
+  it('should filter state records to only the target issue', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
+            cid: 'cid1',
+            value: {
+              issue: 'at://did:plc:owner/sh.tangled.repo.issue/other-issue',
+              state: 'sh.tangled.repo.issue.state.closed',
+            },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    // The closed state is for a different issue, so this one should be open
+    const result = await getIssueState({
+      client: mockClient,
+      issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+    });
+
+    expect(result).toBe('open');
+  });
+
+  it('should throw error when not authenticated', async () => {
+    mockClient = createMockClient(false);
+
+    await expect(
+      getIssueState({
+        client: mockClient,
+        issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      })
+    ).rejects.toThrow('Must be authenticated');
+  });
+});
+
+describe('reopenIssue', () => {
+  let mockClient: TangledApiClient;
+
+  beforeEach(() => {
+    mockClient = createMockClient(true);
+  });
+
+  it('should reopen a closed issue', async () => {
+    const mockGetRecord = vi.fn().mockResolvedValue({
+      data: {
+        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+        cid: 'cid1',
+        value: {
+          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          title: 'Test Issue',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    const mockCreateRecord = vi.fn().mockResolvedValue({
+      data: {
+        uri: 'at://did:plc:test123/sh.tangled.repo.issue.state/state1',
+        cid: 'state-cid',
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            createRecord: mockCreateRecord,
+          },
+        },
+      },
+    } as never);
+
+    await reopenIssue({
+      client: mockClient,
+      issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+    });
+
+    expect(mockCreateRecord).toHaveBeenCalledWith({
+      repo: 'did:plc:test123',
+      collection: 'sh.tangled.repo.issue.state',
+      record: {
+        $type: 'sh.tangled.repo.issue.state',
+        issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+        state: 'sh.tangled.repo.issue.state.open',
+      },
+    });
+  });
+
+  it('should throw error when not authenticated', async () => {
+    mockClient = createMockClient(false);
+
+    await expect(
+      reopenIssue({
+        client: mockClient,
+        issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
       })
     ).rejects.toThrow('Must be authenticated');
   });
