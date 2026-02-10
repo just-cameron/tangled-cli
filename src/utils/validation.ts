@@ -4,7 +4,7 @@ import { z } from 'zod';
  * Validation schema for AT Protocol handle
  * Supports standard Bluesky handles (user.bsky.social) and custom domains (example.com)
  */
-export const handleSchema = z
+export const handleSchema: z.ZodString = z
   .string()
   .min(1, 'Handle cannot be empty')
   .regex(
@@ -15,7 +15,7 @@ export const handleSchema = z
 /**
  * Validation schema for AT Protocol DID
  */
-export const didSchema = z
+export const didSchema: z.ZodString = z
   .string()
   .min(1, 'DID cannot be empty')
   .regex(
@@ -27,7 +27,7 @@ export const didSchema = z
  * Validation schema for app password
  * AT Protocol app passwords are typically 19 characters with dashes
  */
-export const appPasswordSchema = z
+export const appPasswordSchema: z.ZodString = z
   .string()
   .min(1, 'Password cannot be empty')
   .max(1000, 'Password is too long');
@@ -35,7 +35,7 @@ export const appPasswordSchema = z
 /**
  * Validation schema for identifier (handle or DID)
  */
-export const identifierSchema = z.union([handleSchema, didSchema]);
+export const identifierSchema: z.ZodUnion<[typeof handleSchema, typeof didSchema]> = z.union([handleSchema, didSchema]);
 
 /**
  * Validate a handle
@@ -111,7 +111,7 @@ export function safeValidateIdentifier(
 /**
  * Validation schema for Tangled-specific DID (did:plc: format only)
  */
-export const tangledDidSchema = z
+export const tangledDidSchema: z.ZodString = z
   .string()
   .regex(/^did:plc:[a-z0-9]+$/, 'Invalid Tangled DID format. Expected: did:plc:...');
 
@@ -135,7 +135,7 @@ export function isValidTangledDid(did: string): boolean {
  * Validation schema for issue title
  * Titles must be 1-256 characters
  */
-export const issueTitleSchema = z
+export const issueTitleSchema: z.ZodString = z
   .string()
   .min(1, 'Issue title cannot be empty')
   .max(256, 'Issue title must be 256 characters or less');
@@ -144,7 +144,7 @@ export const issueTitleSchema = z
  * Validation schema for issue body
  * Body is optional but limited to 50,000 characters
  */
-export const issueBodySchema = z
+export const issueBodySchema: z.ZodOptional<z.ZodString> = z
   .string()
   .max(50000, 'Issue body must be 50,000 characters or less')
   .optional();
@@ -153,7 +153,7 @@ export const issueBodySchema = z
  * Validation schema for AT-URI
  * Format: at://did:method:identifier/collection[/rkey]
  */
-export const atUriSchema = z
+export const atUriSchema: z.ZodString = z
   .string()
   .regex(
     /^at:\/\/did:[a-z]+:[a-zA-Z0-9._:%-]+\/[a-zA-Z0-9._-]+(?:\.[a-zA-Z0-9._-]+)*(?:\/[a-zA-Z0-9._-]+)?$/,

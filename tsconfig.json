@@ -13,6 +13,8 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "erasableSyntaxOnly": true,
+    "isolatedDeclarations": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
