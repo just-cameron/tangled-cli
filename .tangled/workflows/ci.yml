@@ -9,7 +9,11 @@ when:
 engine: nixery
 
 # Clone repository to get all source files
-clone: true
+# using the default values
+clone:
+  skip: false
+  depth: 1
+  submodules: false
 
 dependencies:
   nixpkgs:
