@@ -26,7 +26,6 @@ describe('Config Management', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     originalEnv = process.env.TANGLED_REMOTE;
-    // biome-ignore lint/performance/noDelete: Need to actually delete env var, not set to undefined
     delete process.env.TANGLED_REMOTE;
   });
 
@@ -34,7 +33,6 @@ describe('Config Management', () => {
     if (originalEnv !== undefined) {
       process.env.TANGLED_REMOTE = originalEnv;
     } else {
-      // biome-ignore lint/performance/noDelete: Need to actually delete env var, not set to undefined
       delete process.env.TANGLED_REMOTE;
     }
   });

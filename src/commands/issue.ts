@@ -1,8 +1,9 @@
 import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
-import { createApiClient } from '../lib/api-client.js';
 import type { TangledApiClient } from '../lib/api-client.js';
+import { createApiClient } from '../lib/api-client.js';
 import { getCurrentRepoContext } from '../lib/context.js';
+import type { IssueData } from '../lib/issues-api.js';
 import {
   closeIssue,
   createIssue,
@@ -14,7 +15,6 @@ import {
   resolveSequentialNumber,
   updateIssue,
 } from '../lib/issues-api.js';
-import type { IssueData } from '../lib/issues-api.js';
 import { buildRepoAtUri } from '../utils/at-uri.js';
 import { ensureAuthenticated, requireAuth } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';

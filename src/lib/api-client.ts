@@ -1,10 +1,10 @@
-import { AtpAgent } from '@atproto/api';
 import type { AtpSessionData } from '@atproto/api';
+import { AtpAgent } from '@atproto/api';
 import {
-  KeychainAccessError,
   clearCurrentSessionMetadata,
   deleteSession,
   getCurrentSessionMetadata,
+  KeychainAccessError,
   loadSession,
   saveCurrentSessionMetadata,
   saveSession,

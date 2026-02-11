@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createIssueCommand } from '../../src/commands/issue.js';
-import * as apiClient from '../../src/lib/api-client.js';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
+import * as apiClient from '../../src/lib/api-client.js';
 import * as context from '../../src/lib/context.js';
-import * as issuesApi from '../../src/lib/issues-api.js';
 import type { IssueWithMetadata } from '../../src/lib/issues-api.js';
+import * as issuesApi from '../../src/lib/issues-api.js';
 import * as atUri from '../../src/utils/at-uri.js';
 import * as authHelpers from '../../src/utils/auth-helpers.js';
 import * as bodyInput from '../../src/utils/body-input.js';

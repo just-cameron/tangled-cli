@@ -28,7 +28,13 @@
     "type": "git",
     "url": "git@tangled.org:markbennett.ca/tangled-cli"
   },
-  "keywords": ["git", "tangled", "pds", "atproto", "cli"],
+  "keywords": [
+    "git",
+    "tangled",
+    "pds",
+    "atproto",
+    "cli"
+  ],
   "author": "Mark Bennett",
   "license": "MIT",
   "dependencies": {
@@ -44,7 +50,7 @@
   },
   "devDependencies": {
     "@atproto/lex-cli": "^0.9.8",
-    "@biomejs/biome": "^1.9.4",
+    "@biomejs/biome": "^2.3.14",
     "@types/node": "^22.10.2",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2",

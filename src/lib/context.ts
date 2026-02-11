@@ -61,7 +61,7 @@ export async function getTangledRemotes(cwd: string = process.cwd()): Promise<Re
     }
 
     return tangledRemotes;
-  } catch (error) {
+  } catch {
     // Git errors - return empty array
     return [];
   }

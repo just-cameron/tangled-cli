@@ -1,15 +1,15 @@
 import type { AtpSessionData } from '@atproto/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TangledApiClient } from '../../src/lib/api-client.js';
-import { KeychainAccessError } from '../../src/lib/session.js';
 import * as sessionModule from '../../src/lib/session.js';
+import { KeychainAccessError } from '../../src/lib/session.js';
 import { mockSessionData, mockSessionMetadata } from '../helpers/mock-data.js';
 
 // Mock @atproto/api
 vi.mock('@atproto/api', () => {
   return {
     AtpAgent: vi.fn().mockImplementation(() => {
-      let currentSession: AtpSessionData | undefined = undefined;
+      let currentSession: AtpSessionData | undefined;
 
       return {
         service: { toString: () => 'https://bsky.social' },

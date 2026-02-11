@@ -8,7 +8,7 @@
  * 3. Ensures proper TypeScript compatibility with NodeNext module resolution
  */
 
-import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 // Recursively find all .ts files in a directory
@@ -52,7 +52,7 @@ for (const file of files) {
   // Match: from '../../something' or from "../something"
   // But don't match if it already has an extension
   const relativeImportRegex = /from\s+['"](\.\.[^'"]*?)(?<!\.js|\.ts)['"]/g;
-  modified = modified.replace(relativeImportRegex, (match, path) => {
+  modified = modified.replace(relativeImportRegex, (_match, path) => {
     fileChanges++;
     return `from '${path}.js'`;
   });

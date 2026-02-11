@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { Command } from 'commander';
 import { simpleGit } from 'simple-git';
-import { type TangledConfig, loadConfig } from '../lib/config.js';
+import { loadConfig, type TangledConfig } from '../lib/config.js';
 
 /**
  * Get Git root directory
