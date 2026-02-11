@@ -18,6 +18,7 @@ clone:
 dependencies:
   nixpkgs:
     - nodejs_22
+    - biome
 
 environment:
   NODE_ENV: "test"
@@ -27,7 +28,7 @@ steps:
     command: "npm ci"
 
   - name: "Run linting"
-    command: "npm run lint"
+    command: "biome check ."
 
   - name: "Run type checking"
     command: "npm run typecheck"
