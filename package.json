@@ -48,9 +48,10 @@
     "simple-git": "^3.30.0",
     "zod": "^4.3.6"
   },
+  "//devDependencies": "@biomejs/biome is pinned to match the nixpkgs biome version used in CI (.tangled/workflows/ci.yml). When upgrading, update both together. nixpkgs package: https://search.nixos.org/packages?channel=nixos-unstable&show=biome",
   "devDependencies": {
     "@atproto/lex-cli": "^0.9.8",
-    "@biomejs/biome": "^2.3.14",
+    "@biomejs/biome": "2.3.6",
     "@types/node": "^22.10.2",
     "tsx": "^4.21.0",
     "typescript": "^5.7.2",
