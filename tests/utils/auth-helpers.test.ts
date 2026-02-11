@@ -84,7 +84,7 @@ describe('ensureAuthenticated', () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
-  it('should unlock keychain and retry when KeychainAccessError is thrown', async () => {
+  it.skipIf(process.platform !== 'darwin')('should unlock keychain and retry when KeychainAccessError is thrown', async () => {
     const mockClient = {
       resumeSession: vi
         .fn()
