@@ -424,6 +424,72 @@ export async function getIssueState(params: GetIssueStateParams): Promise<'open'
 }
 
 /**
+ * Resolve a sequential issue number from a displayId or by scanning the issue list.
+ * Fast path: if displayId is "#N", return N directly.
+ * Fallback: fetch all issues, sort oldest-first, return 1-based position.
+ */
+export async function resolveSequentialNumber(
+  displayId: string,
+  issueUri: string,
+  client: TangledApiClient,
+  repoAtUri: string
+): Promise<number | undefined> {
+  const match = displayId.match(/^#(\d+)$/);
+  if (match) return Number.parseInt(match[1], 10);
+
+  const { issues } = await listIssues({ client, repoAtUri, limit: 100 });
+  const sorted = issues.sort(
+    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+  );
+  const idx = sorted.findIndex((i) => i.uri === issueUri);
+  return idx >= 0 ? idx + 1 : undefined;
+}
+
+/**
+ * Canonical JSON shape for a single issue, used by all issue commands.
+ */
+export interface IssueData {
+  number: number | undefined;
+  title: string;
+  body?: string;
+  state: 'open' | 'closed';
+  author: string;
+  createdAt: string;
+  uri: string;
+  cid: string;
+}
+
+/**
+ * Fetch a complete IssueData object ready for JSON output.
+ * Fetches the issue record and sequential number in parallel.
+ * If stateOverride is supplied (e.g. 'closed' after a close operation),
+ * getIssueState is skipped; otherwise the current state is fetched.
+ */
+export async function getCompleteIssueData(
+  client: TangledApiClient,
+  issueUri: string,
+  displayId: string,
+  repoAtUri: string,
+  stateOverride?: 'open' | 'closed'
+): Promise<IssueData> {
+  const [issue, number] = await Promise.all([
+    getIssue({ client, issueUri }),
+    resolveSequentialNumber(displayId, issueUri, client, repoAtUri),
+  ]);
+  const state = stateOverride ?? (await getIssueState({ client, issueUri }));
+  return {
+    number,
+    title: issue.title,
+    body: issue.body,
+    state,
+    author: issue.author,
+    createdAt: issue.createdAt,
+    uri: issue.uri,
+    cid: issue.cid,
+  };
+}
+
+/**
  * Reopen a closed issue by creating an open state record
  */
 export async function reopenIssue(params: ReopenIssueParams): Promise<void> {

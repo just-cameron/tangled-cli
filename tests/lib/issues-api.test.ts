@@ -4,10 +4,12 @@ import {
   closeIssue,
   createIssue,
   deleteIssue,
+  getCompleteIssueData,
   getIssue,
   getIssueState,
   listIssues,
   reopenIssue,
+  resolveSequentialNumber,
   updateIssue,
 } from '../../src/lib/issues-api.js';
 
@@ -861,5 +863,227 @@ describe('reopenIssue', () => {
         issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
       })
     ).rejects.toThrow('Must be authenticated');
+  });
+});
+
+describe('resolveSequentialNumber', () => {
+  let mockClient: TangledApiClient;
+
+  beforeEach(() => {
+    mockClient = createMockClient(true);
+  });
+
+  it('should return number directly for #N displayId without an API call (fast path)', async () => {
+    const result = await resolveSequentialNumber(
+      '#3',
+      'at://did:plc:owner/sh.tangled.repo.issue/issue3',
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo/my-repo'
+    );
+    expect(result).toBe(3);
+  });
+
+  it('should scan issue list and return 1-based position for rkey displayId', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
+            cid: 'cid1',
+            value: {
+              $type: 'sh.tangled.repo.issue',
+              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+              title: 'First',
+              createdAt: '2024-01-01T00:00:00.000Z',
+            },
+          },
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-b',
+            cid: 'cid2',
+            value: {
+              $type: 'sh.tangled.repo.issue',
+              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+              title: 'Second',
+              createdAt: '2024-01-02T00:00:00.000Z',
+            },
+          },
+        ],
+        cursor: undefined,
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await resolveSequentialNumber(
+      'issue-b',
+      'at://did:plc:owner/sh.tangled.repo.issue/issue-b',
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo/my-repo'
+    );
+    expect(result).toBe(2);
+  });
+
+  it('should return undefined when issue URI not found in list', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
+            cid: 'cid1',
+            value: {
+              $type: 'sh.tangled.repo.issue',
+              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+              title: 'First',
+              createdAt: '2024-01-01T00:00:00.000Z',
+            },
+          },
+        ],
+        cursor: undefined,
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await resolveSequentialNumber(
+      'nonexistent',
+      'at://did:plc:owner/sh.tangled.repo.issue/nonexistent',
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo/my-repo'
+    );
+    expect(result).toBeUndefined();
+  });
+});
+
+describe('getCompleteIssueData', () => {
+  let mockClient: TangledApiClient;
+
+  beforeEach(() => {
+    mockClient = createMockClient(true);
+  });
+
+  it('should return all fields including fetched state', async () => {
+    const mockGetRecord = vi.fn().mockResolvedValue({
+      data: {
+        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+        cid: 'cid1',
+        value: {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          title: 'Test Issue',
+          body: 'Test body',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    // getIssueState uses listRecords on the state collection
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/s1',
+            cid: 'scid1',
+            value: {
+              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+              state: 'sh.tangled.repo.issue.state.closed',
+            },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { getRecord: mockGetRecord, listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await getCompleteIssueData(
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      '#1', // fast-path for number — no listRecords call for issues
+      'at://did:plc:owner/sh.tangled.repo/my-repo'
+    );
+
+    expect(result).toEqual({
+      number: 1,
+      title: 'Test Issue',
+      body: 'Test body',
+      state: 'closed',
+      author: 'did:plc:owner',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      cid: 'cid1',
+    });
+  });
+
+  it('should use stateOverride and skip the getIssueState network call', async () => {
+    const mockGetRecord = vi.fn().mockResolvedValue({
+      data: {
+        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+        cid: 'cid1',
+        value: {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          title: 'Test Issue',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    const mockListRecords = vi.fn();
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { getRecord: mockGetRecord, listRecords: mockListRecords } } },
+    } as never);
+
+    const result = await getCompleteIssueData(
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      '#2',
+      'at://did:plc:owner/sh.tangled.repo/my-repo',
+      'closed'
+    );
+
+    expect(result.number).toBe(2);
+    expect(result.state).toBe('closed');
+    expect(mockListRecords).not.toHaveBeenCalled();
+  });
+
+  it('should return undefined body and default open state when issue has no body or state records', async () => {
+    const mockGetRecord = vi.fn().mockResolvedValue({
+      data: {
+        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+        cid: 'cid1',
+        value: {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          title: 'No body issue',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
+    } as never);
+
+    const result = await getCompleteIssueData(
+      mockClient,
+      'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      '#1',
+      'at://did:plc:owner/sh.tangled.repo/my-repo'
+    );
+
+    expect(result.body).toBeUndefined();
+    expect(result.state).toBe('open');
   });
 });
