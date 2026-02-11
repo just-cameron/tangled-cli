@@ -1,4 +1,3 @@
-import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
 import type { TangledApiClient } from '../lib/api-client.js';
 import { createApiClient } from '../lib/api-client.js';
@@ -7,7 +6,6 @@ import type { IssueData } from '../lib/issues-api.js';
 import {
   closeIssue,
   createIssue,
-  deleteIssue,
   getCompleteIssueData,
   getIssueState,
   listIssues,
@@ -368,75 +366,6 @@ function createReopenCommand(): Command {
 }
 
 /**
- * Issue delete subcommand
- */
-function createDeleteCommand(): Command {
-  return new IssueCommand('delete')
-    .description('Delete an issue permanently')
-    .argument('<issue-id>', 'Issue number or rkey')
-    .option('-f, --force', 'Skip confirmation prompt')
-    .addIssueJsonOption()
-    .action(async (issueId: string, options: { force?: boolean; json?: string | true }) => {
-      // 1. Validate auth
-      const client = createApiClient();
-      await ensureAuthenticated(client);
-
-      // 2. Get repo context
-      const context = await getCurrentRepoContext();
-      if (!context) {
-        console.error('✗ Not in a Tangled repository');
-        console.error('\nTo use this repository with Tangled, add a remote:');
-        console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
-        process.exit(1);
-      }
-
-      // 3. Build repo AT-URI, resolve issue ID, and fetch issue details
-      let issueUri: string;
-      let displayId: string;
-      let issueData: IssueData;
-      try {
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        ({ uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri));
-        issueData = await getCompleteIssueData(client, issueUri, displayId, repoAtUri);
-      } catch (error) {
-        console.error(
-          `✗ Failed to delete issue: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        process.exit(1);
-      }
-
-      // 4. Confirm deletion if not --force (outside try so process.exit(0) propagates cleanly)
-      if (!options.force) {
-        const confirmed = await confirm({
-          message: `Are you sure you want to delete issue ${displayId} "${issueData.title}"? This cannot be undone.`,
-          default: false,
-        });
-
-        if (!confirmed) {
-          console.log('Deletion cancelled.');
-          process.exit(0);
-        }
-      }
-
-      // 5. Delete issue
-      try {
-        await deleteIssue({ client, issueUri });
-        if (options.json !== undefined) {
-          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
-        } else {
-          console.log(`✓ Issue ${displayId} deleted`);
-          console.log(`  Title: ${issueData.title}`);
-        }
-      } catch (error) {
-        console.error(
-          `✗ Failed to delete issue: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        process.exit(1);
-      }
-    });
-}
-
-/**
  * Create the issue command with all subcommands
  */
 export function createIssueCommand(): Command {
@@ -449,7 +378,6 @@ export function createIssueCommand(): Command {
   issue.addCommand(createEditCommand());
   issue.addCommand(createCloseCommand());
   issue.addCommand(createReopenCommand());
-  issue.addCommand(createDeleteCommand());
 
   return issue;
 }

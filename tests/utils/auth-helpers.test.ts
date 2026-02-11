@@ -84,20 +84,23 @@ describe('ensureAuthenticated', () => {
     expect(mockExit).toHaveBeenCalledWith(1);
   });
 
-  it.skipIf(process.platform !== 'darwin')('should unlock keychain and retry when KeychainAccessError is thrown', async () => {
-    const mockClient = {
-      resumeSession: vi
-        .fn()
-        .mockRejectedValueOnce(new KeychainAccessError('locked'))
-        .mockResolvedValueOnce(true),
-    } as unknown as TangledApiClient;
+  it.skipIf(process.platform !== 'darwin')(
+    'should unlock keychain and retry when KeychainAccessError is thrown',
+    async () => {
+      const mockClient = {
+        resumeSession: vi
+          .fn()
+          .mockRejectedValueOnce(new KeychainAccessError('locked'))
+          .mockResolvedValueOnce(true),
+      } as unknown as TangledApiClient;
 
-    vi.mocked(execSync).mockReturnValue(Buffer.from(''));
+      vi.mocked(execSync).mockReturnValue(Buffer.from(''));
 
-    await expect(ensureAuthenticated(mockClient)).resolves.toBeUndefined();
-    expect(execSync).toHaveBeenCalledWith('security unlock-keychain', { stdio: 'inherit' });
-    expect(mockExit).not.toHaveBeenCalled();
-  });
+      await expect(ensureAuthenticated(mockClient)).resolves.toBeUndefined();
+      expect(execSync).toHaveBeenCalledWith('security unlock-keychain', { stdio: 'inherit' });
+      expect(mockExit).not.toHaveBeenCalled();
+    }
+  );
 
   it('should exit with keychain error when unlock fails', async () => {
     const mockClient = {

@@ -73,14 +73,6 @@ export interface CloseIssueParams {
 }
 
 /**
- * Parameters for deleting an issue
- */
-export interface DeleteIssueParams {
-  client: TangledApiClient;
-  issueUri: string;
-}
-
-/**
  * Parameters for getting issue state
  */
 export interface GetIssueStateParams {
@@ -333,41 +325,6 @@ export async function closeIssue(params: CloseIssueParams): Promise<void> {
       throw new Error(`Failed to close issue: ${error.message}`);
     }
     throw new Error('Failed to close issue: Unknown error');
-  }
-}
-
-/**
- * Delete an issue
- */
-export async function deleteIssue(params: DeleteIssueParams): Promise<void> {
-  const { client, issueUri } = params;
-
-  // Validate authentication
-  const session = await requireAuth(client);
-
-  // Parse issue URI
-  const { did, collection, rkey } = parseIssueUri(issueUri);
-
-  // Verify user owns the issue
-  if (did !== session.did) {
-    throw new Error('Cannot delete issue: you are not the author');
-  }
-
-  try {
-    // Delete record via AT Protocol
-    await client.getAgent().com.atproto.repo.deleteRecord({
-      repo: did,
-      collection,
-      rkey,
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message.includes('not found')) {
-        throw new Error(`Issue not found: ${issueUri}`);
-      }
-      throw new Error(`Failed to delete issue: ${error.message}`);
-    }
-    throw new Error('Failed to delete issue: Unknown error');
   }
 }
 

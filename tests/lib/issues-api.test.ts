@@ -3,7 +3,6 @@ import type { TangledApiClient } from '../../src/lib/api-client.js';
 import {
   closeIssue,
   createIssue,
-  deleteIssue,
   getCompleteIssueData,
   getIssue,
   getIssueState,
@@ -587,80 +586,6 @@ describe('closeIssue', () => {
       closeIssue({
         client: mockClient,
         issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-      })
-    ).rejects.toThrow('Must be authenticated');
-  });
-});
-
-describe('deleteIssue', () => {
-  let mockClient: TangledApiClient;
-
-  beforeEach(() => {
-    mockClient = createMockClient(true);
-  });
-
-  it('should delete an issue', async () => {
-    const mockDeleteRecord = vi.fn().mockResolvedValue({});
-
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            deleteRecord: mockDeleteRecord,
-          },
-        },
-      },
-    } as never);
-
-    await deleteIssue({
-      client: mockClient,
-      issueUri: 'at://did:plc:test123/sh.tangled.repo.issue/issue1',
-    });
-
-    expect(mockDeleteRecord).toHaveBeenCalledWith({
-      repo: 'did:plc:test123',
-      collection: 'sh.tangled.repo.issue',
-      rkey: 'issue1',
-    });
-  });
-
-  it('should throw error when deleting issue not owned by user', async () => {
-    await expect(
-      deleteIssue({
-        client: mockClient,
-        issueUri: 'at://did:plc:someone-else/sh.tangled.repo.issue/issue1',
-      })
-    ).rejects.toThrow('Cannot delete issue: you are not the author');
-  });
-
-  it('should throw error when issue not found', async () => {
-    const mockDeleteRecord = vi.fn().mockRejectedValue(new Error('Record not found'));
-
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            deleteRecord: mockDeleteRecord,
-          },
-        },
-      },
-    } as never);
-
-    await expect(
-      deleteIssue({
-        client: mockClient,
-        issueUri: 'at://did:plc:test123/sh.tangled.repo.issue/nonexistent',
-      })
-    ).rejects.toThrow('Issue not found');
-  });
-
-  it('should throw error when not authenticated', async () => {
-    mockClient = createMockClient(false);
-
-    await expect(
-      deleteIssue({
-        client: mockClient,
-        issueUri: 'at://did:plc:test123/sh.tangled.repo.issue/issue1',
       })
     ).rejects.toThrow('Must be authenticated');
   });
