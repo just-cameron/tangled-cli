@@ -7,12 +7,14 @@ import {
   closeIssue,
   createIssue,
   deleteIssue,
-  getIssue,
+  getCompleteIssueData,
   getIssueState,
   listIssues,
   reopenIssue,
+  resolveSequentialNumber,
   updateIssue,
 } from '../lib/issues-api.js';
+import type { IssueData } from '../lib/issues-api.js';
 import { buildRepoAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
@@ -87,38 +89,25 @@ async function resolveIssueUri(
 }
 
 /**
- * Resolve a sequential issue number from a displayId or by scanning the issue list.
- * Fast path: if displayId is "#N", return N directly.
- * Fallback: fetch all issues, sort oldest-first, return 1-based position.
+ * A custom subclass of Command with support for adding the common issue JSON flag.
  */
-async function resolveSequentialNumber(
-  displayId: string,
-  issueUri: string,
-  client: TangledApiClient,
-  repoAtUri: string
-): Promise<number | undefined> {
-  const match = displayId.match(/^#(\d+)$/);
-  if (match) return Number.parseInt(match[1], 10);
-
-  const { issues } = await listIssues({ client, repoAtUri, limit: 100 });
-  const sorted = issues.sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
-  const idx = sorted.findIndex((i) => i.uri === issueUri);
-  return idx >= 0 ? idx + 1 : undefined;
+class IssueCommand extends Command {
+  addIssueJsonOption() {
+    return this.option(
+      '--json [fields]',
+      'Output JSON; optionally specify comma-separated fields (number, title, body, state, author, createdAt, uri, cid)'
+    );
+  }
 }
 
 /**
  * Issue view subcommand
  */
 function createViewCommand(): Command {
-  return new Command('view')
+  return new IssueCommand('view')
     .description('View details of a specific issue')
     .argument('<issue-id>', 'Issue number (e.g., 1, #2) or rkey')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (title, body, state, author, createdAt, uri, cid)'
-    )
+    .addIssueJsonOption()
     .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
@@ -143,37 +132,25 @@ function createViewCommand(): Command {
         // 4. Resolve issue ID to URI
         const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
 
-        // 5. Fetch issue details
-        const issue = await getIssue({ client, issueUri });
+        // 5. Fetch complete issue data (record, sequential number, state)
+        const issueData = await getCompleteIssueData(client, issueUri, displayId, repoAtUri);
 
-        // 6. Fetch issue state
-        const state = await getIssueState({ client, issueUri: issue.uri });
-
-        // 7. Output result
+        // 6. Output result
         if (options.json !== undefined) {
-          const issueData = {
-            title: issue.title,
-            body: issue.body,
-            state,
-            author: issue.author,
-            createdAt: issue.createdAt,
-            uri: issue.uri,
-            cid: issue.cid,
-          };
           outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
           return;
         }
 
-        console.log(`\nIssue ${displayId} ${formatIssueState(state)}`);
-        console.log(`Title: ${issue.title}`);
-        console.log(`Author: ${issue.author}`);
-        console.log(`Created: ${formatDate(issue.createdAt)}`);
+        console.log(`\nIssue ${displayId} ${formatIssueState(issueData.state)}`);
+        console.log(`Title: ${issueData.title}`);
+        console.log(`Author: ${issueData.author}`);
+        console.log(`Created: ${formatDate(issueData.createdAt)}`);
         console.log(`Repo: ${context.name}`);
-        console.log(`URI: ${issue.uri}`);
+        console.log(`URI: ${issueData.uri}`);
 
-        if (issue.body) {
+        if (issueData.body) {
           console.log('\nBody:');
-          console.log(issue.body);
+          console.log(issueData.body);
         }
 
         console.log(); // Empty line at end
@@ -190,16 +167,13 @@ function createViewCommand(): Command {
  * Issue edit subcommand
  */
 function createEditCommand(): Command {
-  return new Command('edit')
+  return new IssueCommand('edit')
     .description('Edit an issue title and/or body')
     .argument('<issue-id>', 'Issue number or rkey')
     .option('-t, --title <string>', 'New issue title')
     .option('-b, --body <string>', 'New issue body text')
     .option('-F, --body-file <path>', 'Read body from file (- for stdin)')
-    .option(
-      '--json [fields]',
-      'Output JSON of the updated issue; optionally specify comma-separated fields (title, body, author, createdAt, uri, cid)'
-    )
+    .addIssueJsonOption()
     .action(
       async (
         issueId: string,
@@ -251,9 +225,15 @@ function createEditCommand(): Command {
 
           // 9. Output result
           if (options.json !== undefined) {
-            const issueData = {
+            const [number, state] = await Promise.all([
+              resolveSequentialNumber(displayId, updatedIssue.uri, client, repoAtUri),
+              getIssueState({ client, issueUri: updatedIssue.uri }),
+            ]);
+            const issueData: IssueData = {
+              number,
               title: updatedIssue.title,
               body: updatedIssue.body,
+              state,
               author: updatedIssue.author,
               createdAt: updatedIssue.createdAt,
               uri: updatedIssue.uri,
@@ -283,13 +263,10 @@ function createEditCommand(): Command {
  * Issue close subcommand
  */
 function createCloseCommand(): Command {
-  return new Command('close')
+  return new IssueCommand('close')
     .description('Close an issue')
     .argument('<issue-id>', 'Issue number or rkey')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (number, title, uri, state, cid)'
-    )
+    .addIssueJsonOption()
     .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
@@ -314,22 +291,24 @@ function createCloseCommand(): Command {
         // 4. Resolve issue ID to URI
         const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
 
-        // 5. Fetch issue details and sequential number
-        const issue = await getIssue({ client, issueUri });
-        const number = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
+        // 5. Fetch complete issue data (state will be 'closed' after operation)
+        const issueData = await getCompleteIssueData(
+          client,
+          issueUri,
+          displayId,
+          repoAtUri,
+          'closed'
+        );
 
         // 6. Close issue
         await closeIssue({ client, issueUri });
 
         // 7. Display success
         if (options.json !== undefined) {
-          outputJson(
-            { number, title: issue.title, uri: issueUri, state: 'closed', cid: issue.cid },
-            typeof options.json === 'string' ? options.json : undefined
-          );
+          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
         } else {
           console.log(`✓ Issue ${displayId} closed`);
-          console.log(`  Title: ${issue.title}`);
+          console.log(`  Title: ${issueData.title}`);
         }
       } catch (error) {
         console.error(
@@ -344,13 +323,10 @@ function createCloseCommand(): Command {
  * Issue reopen subcommand
  */
 function createReopenCommand(): Command {
-  return new Command('reopen')
+  return new IssueCommand('reopen')
     .description('Reopen a closed issue')
     .argument('<issue-id>', 'Issue number or rkey')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (number, title, uri, state, cid)'
-    )
+    .addIssueJsonOption()
     .action(async (issueId: string, options: { json?: string | true }) => {
       try {
         // 1. Validate auth
@@ -375,22 +351,24 @@ function createReopenCommand(): Command {
         // 4. Resolve issue ID to URI
         const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
 
-        // 5. Fetch issue details and sequential number
-        const issue = await getIssue({ client, issueUri });
-        const number = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
+        // 5. Fetch complete issue data (state will be 'open' after operation)
+        const issueData = await getCompleteIssueData(
+          client,
+          issueUri,
+          displayId,
+          repoAtUri,
+          'open'
+        );
 
         // 6. Reopen issue
         await reopenIssue({ client, issueUri });
 
         // 7. Display success
         if (options.json !== undefined) {
-          outputJson(
-            { number, title: issue.title, uri: issueUri, state: 'open', cid: issue.cid },
-            typeof options.json === 'string' ? options.json : undefined
-          );
+          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
         } else {
           console.log(`✓ Issue ${displayId} reopened`);
-          console.log(`  Title: ${issue.title}`);
+          console.log(`  Title: ${issueData.title}`);
         }
       } catch (error) {
         console.error(
@@ -405,14 +383,11 @@ function createReopenCommand(): Command {
  * Issue delete subcommand
  */
 function createDeleteCommand(): Command {
-  return new Command('delete')
+  return new IssueCommand('delete')
     .description('Delete an issue permanently')
     .argument('<issue-id>', 'Issue number or rkey')
     .option('-f, --force', 'Skip confirmation prompt')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (number, title, uri, cid)'
-    )
+    .addIssueJsonOption()
     .action(async (issueId: string, options: { force?: boolean; json?: string | true }) => {
       // 1. Validate auth
       const client = createApiClient();
@@ -433,16 +408,11 @@ function createDeleteCommand(): Command {
       // 3. Build repo AT-URI, resolve issue ID, and fetch issue details
       let issueUri: string;
       let displayId: string;
-      let issueTitle: string;
-      let issueCid: string;
-      let issueNumber: number | undefined;
+      let issueData: IssueData;
       try {
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
         ({ uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri));
-        const issue = await getIssue({ client, issueUri });
-        issueTitle = issue.title;
-        issueCid = issue.cid;
-        issueNumber = await resolveSequentialNumber(displayId, issueUri, client, repoAtUri);
+        issueData = await getCompleteIssueData(client, issueUri, displayId, repoAtUri);
       } catch (error) {
         console.error(
           `✗ Failed to delete issue: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -453,7 +423,7 @@ function createDeleteCommand(): Command {
       // 4. Confirm deletion if not --force (outside try so process.exit(0) propagates cleanly)
       if (!options.force) {
         const confirmed = await confirm({
-          message: `Are you sure you want to delete issue ${displayId} "${issueTitle}"? This cannot be undone.`,
+          message: `Are you sure you want to delete issue ${displayId} "${issueData.title}"? This cannot be undone.`,
           default: false,
         });
 
@@ -467,13 +437,10 @@ function createDeleteCommand(): Command {
       try {
         await deleteIssue({ client, issueUri });
         if (options.json !== undefined) {
-          outputJson(
-            { number: issueNumber, title: issueTitle, uri: issueUri, cid: issueCid },
-            typeof options.json === 'string' ? options.json : undefined
-          );
+          outputJson(issueData, typeof options.json === 'string' ? options.json : undefined);
         } else {
           console.log(`✓ Issue ${displayId} deleted`);
-          console.log(`  Title: ${issueTitle}`);
+          console.log(`  Title: ${issueData.title}`);
         }
       } catch (error) {
         console.error(
@@ -506,15 +473,12 @@ export function createIssueCommand(): Command {
  * Issue create subcommand
  */
 function createCreateCommand(): Command {
-  return new Command('create')
+  return new IssueCommand('create')
     .description('Create a new issue')
     .argument('<title>', 'Issue title')
     .option('-b, --body <string>', 'Issue body text')
     .option('-F, --body-file <path>', 'Read body from file (- for stdin)')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (number, title, body, author, createdAt, uri, cid)'
-    )
+    .addIssueJsonOption()
     .action(
       async (
         title: string,
@@ -570,10 +534,11 @@ function createCreateCommand(): Command {
 
           // 8. Output result
           if (options.json !== undefined) {
-            const issueData = {
+            const issueData: IssueData = {
               number,
               title: issue.title,
               body: issue.body,
+              state: 'open',
               author: issue.author,
               createdAt: issue.createdAt,
               uri: issue.uri,
@@ -601,13 +566,10 @@ function createCreateCommand(): Command {
  * Issue list subcommand
  */
 function createListCommand(): Command {
-  return new Command('list')
+  return new IssueCommand('list')
     .description('List issues for the current repository')
     .option('-l, --limit <number>', 'Maximum number of issues to fetch', '50')
-    .option(
-      '--json [fields]',
-      'Output JSON; optionally specify comma-separated fields (number, title, body, state, author, createdAt, uri, cid)'
-    )
+    .addIssueJsonOption()
     .action(async (options: { limit: string; json?: string | true }) => {
       try {
         // 1. Validate auth

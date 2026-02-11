@@ -615,20 +615,26 @@ describe('issue view command', () => {
       issues: [mockIssue],
       cursor: undefined,
     });
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
-    vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: 1,
+      title: mockIssue.title,
+      body: mockIssue.body,
+      state: 'open',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
 
     const command = createIssueCommand();
     await command.parseAsync(['node', 'test', 'view', '1']);
 
-    expect(issuesApi.getIssue).toHaveBeenCalledWith({
-      client: mockClient,
-      issueUri: mockIssue.uri,
-    });
-    expect(issuesApi.getIssueState).toHaveBeenCalledWith({
-      client: mockClient,
-      issueUri: mockIssue.uri,
-    });
+    expect(issuesApi.getCompleteIssueData).toHaveBeenCalledWith(
+      mockClient,
+      mockIssue.uri,
+      '#1',
+      'at://did:plc:abc123/sh.tangled.repo/xyz789'
+    );
     expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue #1 [OPEN]');
     expect(consoleLogSpy).toHaveBeenCalledWith('Title: Test Issue');
     expect(consoleLogSpy).toHaveBeenCalledWith('\nBody:');
@@ -636,27 +642,44 @@ describe('issue view command', () => {
   });
 
   it('should view issue by rkey', async () => {
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
-    vi.mocked(issuesApi.getIssueState).mockResolvedValue('closed');
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: undefined,
+      title: mockIssue.title,
+      body: mockIssue.body,
+      state: 'closed',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
 
     const command = createIssueCommand();
     await command.parseAsync(['node', 'test', 'view', 'issue1']);
 
-    expect(issuesApi.getIssue).toHaveBeenCalledWith({
-      client: mockClient,
-      issueUri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
-    });
+    expect(issuesApi.getCompleteIssueData).toHaveBeenCalledWith(
+      mockClient,
+      'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
+      'issue1',
+      'at://did:plc:abc123/sh.tangled.repo/xyz789'
+    );
     expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue issue1 [CLOSED]');
   });
 
   it('should show issue without body', async () => {
-    const issueWithoutBody = { ...mockIssue, body: undefined };
     vi.mocked(issuesApi.listIssues).mockResolvedValue({
-      issues: [issueWithoutBody],
+      issues: [mockIssue],
       cursor: undefined,
     });
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(issueWithoutBody);
-    vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: 1,
+      title: mockIssue.title,
+      body: undefined,
+      state: 'open',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
 
     const command = createIssueCommand();
     await command.parseAsync(['node', 'test', 'view', '1']);
@@ -709,14 +732,23 @@ describe('issue view command', () => {
         issues: [mockIssue],
         cursor: undefined,
       });
-      vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
-      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
+      vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+        number: 1,
+        title: mockIssue.title,
+        body: mockIssue.body,
+        state: 'open',
+        author: mockIssue.author,
+        createdAt: mockIssue.createdAt,
+        uri: mockIssue.uri,
+        cid: mockIssue.cid,
+      });
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'view', '1', '--json']);
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
       expect(jsonOutput).toMatchObject({
+        number: 1,
         title: 'Test Issue',
         body: 'Issue body',
         state: 'open',
@@ -731,8 +763,16 @@ describe('issue view command', () => {
         issues: [mockIssue],
         cursor: undefined,
       });
-      vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
-      vi.mocked(issuesApi.getIssueState).mockResolvedValue('closed');
+      vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+        number: 1,
+        title: mockIssue.title,
+        body: mockIssue.body,
+        state: 'closed',
+        author: mockIssue.author,
+        createdAt: mockIssue.createdAt,
+        uri: mockIssue.uri,
+        cid: mockIssue.cid,
+      });
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'view', '1', '--json', 'title,state']);
@@ -866,13 +906,17 @@ describe('issue edit command', () => {
         cursor: undefined,
       });
       vi.mocked(issuesApi.updateIssue).mockResolvedValue(updatedIssue);
+      vi.mocked(issuesApi.resolveSequentialNumber).mockResolvedValue(1);
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
 
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'edit', '1', '--title', 'New Title', '--json']);
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
       expect(jsonOutput).toMatchObject({
+        number: 1,
         title: 'New Title',
+        state: 'open',
         author: 'did:plc:abc123',
         uri: mockIssue.uri,
         cid: mockIssue.cid,
@@ -888,6 +932,8 @@ describe('issue edit command', () => {
         cursor: undefined,
       });
       vi.mocked(issuesApi.updateIssue).mockResolvedValue(updatedIssue);
+      vi.mocked(issuesApi.resolveSequentialNumber).mockResolvedValue(1);
+      vi.mocked(issuesApi.getIssueState).mockResolvedValue('open');
 
       const command = createIssueCommand();
       await command.parseAsync([
@@ -947,7 +993,16 @@ describe('issue close command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: 1,
+      title: mockIssue.title,
+      body: undefined,
+      state: 'closed',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
   });
 
   afterEach(() => {
@@ -993,8 +1048,10 @@ describe('issue close command', () => {
       expect(jsonOutput).toEqual({
         number: 1,
         title: 'Test Issue',
-        uri: mockIssue.uri,
         state: 'closed',
+        author: mockIssue.author,
+        createdAt: mockIssue.createdAt,
+        uri: mockIssue.uri,
         cid: mockIssue.cid,
       });
     });
@@ -1050,7 +1107,16 @@ describe('issue reopen command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: 1,
+      title: mockIssue.title,
+      body: undefined,
+      state: 'open',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
   });
 
   afterEach(() => {
@@ -1096,8 +1162,10 @@ describe('issue reopen command', () => {
       expect(jsonOutput).toEqual({
         number: 1,
         title: 'Test Issue',
-        uri: mockIssue.uri,
         state: 'open',
+        author: mockIssue.author,
+        createdAt: mockIssue.createdAt,
+        uri: mockIssue.uri,
         cid: mockIssue.cid,
       });
     });
@@ -1154,7 +1222,16 @@ describe('issue delete command', () => {
     });
 
     vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
-    vi.mocked(issuesApi.getIssue).mockResolvedValue(mockIssue);
+    vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
+      number: 1,
+      title: mockIssue.title,
+      body: undefined,
+      state: 'open',
+      author: mockIssue.author,
+      createdAt: mockIssue.createdAt,
+      uri: mockIssue.uri,
+      cid: mockIssue.cid,
+    });
   });
 
   afterEach(() => {
@@ -1241,10 +1318,12 @@ describe('issue delete command', () => {
       expect(jsonOutput).toEqual({
         number: 1,
         title: 'Test Issue',
+        state: 'open',
+        author: mockIssue.author,
+        createdAt: mockIssue.createdAt,
         uri: mockIssue.uri,
         cid: mockIssue.cid,
       });
-      expect(jsonOutput).not.toHaveProperty('state');
     });
 
     it('should output filtered JSON when --json with fields is passed', async () => {
