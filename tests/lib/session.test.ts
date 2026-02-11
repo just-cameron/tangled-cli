@@ -33,16 +33,47 @@ vi.mock('@napi-rs/keyring', () => {
   };
 });
 
+// Mock node:fs/promises for metadata file storage
+const mockFileStorage = new Map<string, string>();
+
+vi.mock('node:fs/promises', () => ({
+  mkdir: vi.fn().mockResolvedValue(undefined),
+  writeFile: vi.fn().mockImplementation(async (path: string, content: string) => {
+    mockFileStorage.set(path as string, content);
+  }),
+  readFile: vi.fn().mockImplementation(async (path: string) => {
+    const content = mockFileStorage.get(path as string);
+    if (content === undefined) {
+      const err = Object.assign(new Error(`ENOENT: no such file or directory, open '${path}'`), {
+        code: 'ENOENT',
+      });
+      throw err;
+    }
+    return content;
+  }),
+  unlink: vi.fn().mockImplementation(async (path: string) => {
+    if (!mockFileStorage.has(path as string)) {
+      const err = Object.assign(new Error(`ENOENT: no such file or directory, unlink '${path}'`), {
+        code: 'ENOENT',
+      });
+      throw err;
+    }
+    mockFileStorage.delete(path as string);
+  }),
+}));
+
 describe('Session Management', () => {
   beforeEach(() => {
     // Clear mock storage before each test
     mockKeyringStorage.clear();
+    mockFileStorage.clear();
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     // Clean up after each test
     mockKeyringStorage.clear();
+    mockFileStorage.clear();
   });
 
   describe('saveSession', () => {

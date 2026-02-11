@@ -1,7 +1,11 @@
+import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import type { AtpSessionData } from '@atproto/api';
 import { AsyncEntry } from '@napi-rs/keyring';
 
 const SERVICE_NAME = 'tangled-cli';
+const SESSION_METADATA_PATH = join(homedir(), '.config', 'tangled', 'session.json');
 
 export class KeychainAccessError extends Error {
   constructor(message: string) {
@@ -73,13 +77,13 @@ export async function deleteSession(accountId: string): Promise<boolean> {
 }
 
 /**
- * Store metadata about current session for CLI to track active user
- * Uses a special "current" account in keychain
+ * Store metadata about current session for CLI to track active user.
+ * Written to a plain file — metadata is not secret and must be readable
+ * even when the keychain is locked (e.g. after sleep/wake).
  */
 export async function saveCurrentSessionMetadata(metadata: SessionMetadata): Promise<void> {
-  const serialized = JSON.stringify(metadata);
-  const entry = new AsyncEntry(SERVICE_NAME, 'current-session-metadata');
-  await entry.setPassword(serialized);
+  await mkdir(join(homedir(), '.config', 'tangled'), { recursive: true });
+  await writeFile(SESSION_METADATA_PATH, JSON.stringify(metadata, null, 2), 'utf-8');
 }
 
 /**
@@ -87,16 +91,13 @@ export async function saveCurrentSessionMetadata(metadata: SessionMetadata): Pro
  */
 export async function getCurrentSessionMetadata(): Promise<SessionMetadata | null> {
   try {
-    const entry = new AsyncEntry(SERVICE_NAME, 'current-session-metadata');
-    const serialized = await entry.getPassword();
-    if (!serialized) {
+    const content = await readFile(SESSION_METADATA_PATH, 'utf-8');
+    return JSON.parse(content) as SessionMetadata;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       return null;
     }
-    return JSON.parse(serialized) as SessionMetadata;
-  } catch (error) {
-    throw new KeychainAccessError(
-      `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
-    );
+    throw error;
   }
 }
 
@@ -104,6 +105,11 @@ export async function getCurrentSessionMetadata(): Promise<SessionMetadata | nul
  * Clear current session metadata
  */
 export async function clearCurrentSessionMetadata(): Promise<void> {
-  const entry = new AsyncEntry(SERVICE_NAME, 'current-session-metadata');
-  await entry.deleteCredential();
+  try {
+    await unlink(SESSION_METADATA_PATH);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw error;
+    }
+  }
 }

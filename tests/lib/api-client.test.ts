@@ -143,7 +143,7 @@ describe('TangledApiClient', () => {
       expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).toHaveBeenCalled();
     });
 
-    it('should return false and cleanup on resume error', async () => {
+    it('should return false without clearing metadata on transient resume error', async () => {
       vi.mocked(sessionModule.getCurrentSessionMetadata).mockResolvedValue(mockSessionMetadata);
       vi.mocked(sessionModule.loadSession).mockResolvedValue(mockSessionData);
 
@@ -153,7 +153,7 @@ describe('TangledApiClient', () => {
       const resumed = await client.resumeSession();
 
       expect(resumed).toBe(false);
-      expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).toHaveBeenCalled();
+      expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).not.toHaveBeenCalled();
     });
 
     it('should rethrow KeychainAccessError without clearing metadata', async () => {

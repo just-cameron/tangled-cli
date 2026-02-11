@@ -111,8 +111,9 @@ export class TangledApiClient {
         // Don't clear credentials — keychain may just be temporarily locked
         throw error;
       }
-      // Session data invalid or agent resume failed — clear stale state
-      await clearCurrentSessionMetadata();
+      // Session resume failed (network error, expired refresh token, etc.)
+      // Don't clear credentials — the error may be transient. The user can
+      // run "auth login" explicitly if they need to re-authenticate.
       return false;
     }
   }
