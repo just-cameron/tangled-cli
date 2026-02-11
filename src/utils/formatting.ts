@@ -45,10 +45,7 @@ function pickFields(obj: Record<string, unknown>, fields: string[]): Record<stri
  * @param data - The data to output (object or array of objects)
  * @param fields - Comma-separated field names to include; omit for all fields
  */
-export function outputJson<T extends object>(
-  data: T | T[],
-  fields?: string
-): void {
+export function outputJson<T extends object>(data: T | T[], fields?: string): void {
   if (fields) {
     const fieldList = fields
       .split(',')
