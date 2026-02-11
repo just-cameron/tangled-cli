@@ -1,6 +1,7 @@
 import { AtpAgent } from '@atproto/api';
 import type { AtpSessionData } from '@atproto/api';
 import {
+  KeychainAccessError,
   clearCurrentSessionMetadata,
   deleteSession,
   getCurrentSessionMetadata,
@@ -106,7 +107,11 @@ export class TangledApiClient {
 
       return true;
     } catch (error) {
-      // If resume fails, clear invalid session
+      if (error instanceof KeychainAccessError) {
+        // Don't clear credentials — keychain may just be temporarily locked
+        throw error;
+      }
+      // Session data invalid or agent resume failed — clear stale state
       await clearCurrentSessionMetadata();
       return false;
     }

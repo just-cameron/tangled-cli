@@ -1,4 +1,6 @@
+import { execSync } from 'node:child_process';
 import type { TangledApiClient } from '../lib/api-client.js';
+import { KeychainAccessError } from '../lib/session.js';
 
 /**
  * Validate that the client is authenticated and has an active session
@@ -9,7 +11,7 @@ export async function requireAuth(client: TangledApiClient): Promise<{
   did: string;
   handle: string;
 }> {
-  if (!(await client.isAuthenticated())) {
+  if (!client.isAuthenticated()) {
     throw new Error('Must be authenticated. Run "tangled auth login" first.');
   }
 
@@ -19,4 +21,46 @@ export async function requireAuth(client: TangledApiClient): Promise<{
   }
 
   return session;
+}
+
+function tryUnlockKeychain(): boolean {
+  if (process.platform !== 'darwin') return false;
+  try {
+    execSync('security unlock-keychain', { stdio: 'inherit' });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Resume session and ensure the client is authenticated.
+ * On macOS, if the keychain is locked, attempts to unlock it interactively
+ * via `security unlock-keychain` before falling back to an error message.
+ * Exits the process with a clear error message if authentication fails.
+ */
+export async function ensureAuthenticated(client: TangledApiClient): Promise<void> {
+  try {
+    const authenticated = await client.resumeSession();
+    if (!authenticated) {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    }
+  } catch (error) {
+    if (error instanceof KeychainAccessError) {
+      const unlocked = tryUnlockKeychain();
+      if (unlocked) {
+        try {
+          const retried = await client.resumeSession();
+          if (retried) return;
+        } catch {
+          // fall through to error message
+        }
+      }
+      console.error('✗ Cannot access keychain. Please unlock your Mac keychain and try again.');
+      console.error('  You can unlock it manually with: security unlock-keychain');
+      process.exit(1);
+    }
+    throw error;
+  }
 }

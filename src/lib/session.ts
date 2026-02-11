@@ -3,6 +3,13 @@ import { AsyncEntry } from '@napi-rs/keyring';
 
 const SERVICE_NAME = 'tangled-cli';
 
+export class KeychainAccessError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'KeychainAccessError';
+  }
+}
+
 export interface SessionMetadata {
   handle: string;
   did: string;
@@ -44,8 +51,8 @@ export async function loadSession(accountId: string): Promise<AtpSessionData | n
     }
     return JSON.parse(serialized) as AtpSessionData;
   } catch (error) {
-    throw new Error(
-      `Failed to load session from keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    throw new KeychainAccessError(
+      `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
 }
@@ -79,12 +86,18 @@ export async function saveCurrentSessionMetadata(metadata: SessionMetadata): Pro
  * Get metadata about current active session
  */
 export async function getCurrentSessionMetadata(): Promise<SessionMetadata | null> {
-  const entry = new AsyncEntry(SERVICE_NAME, 'current-session-metadata');
-  const serialized = await entry.getPassword();
-  if (!serialized) {
-    return null;
+  try {
+    const entry = new AsyncEntry(SERVICE_NAME, 'current-session-metadata');
+    const serialized = await entry.getPassword();
+    if (!serialized) {
+      return null;
+    }
+    return JSON.parse(serialized) as SessionMetadata;
+  } catch (error) {
+    throw new KeychainAccessError(
+      `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
   }
-  return JSON.parse(serialized) as SessionMetadata;
 }
 
 /**

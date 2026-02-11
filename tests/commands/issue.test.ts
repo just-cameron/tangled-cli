@@ -163,7 +163,10 @@ describe('issue create command', () => {
 
   describe('authentication required', () => {
     it('should fail when not authenticated', async () => {
-      vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+      vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+        console.error('✗ Not authenticated. Run "tangled auth login" first.');
+        process.exit(1);
+      });
 
       const command = createIssueCommand();
 
@@ -419,7 +422,10 @@ describe('issue list command', () => {
 
   describe('authentication required', () => {
     it('should fail when not authenticated', async () => {
-      vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+      vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+        console.error('✗ Not authenticated. Run "tangled auth login" first.');
+        process.exit(1);
+      });
 
       const command = createIssueCommand();
 
@@ -689,7 +695,10 @@ describe('issue view command', () => {
   });
 
   it('should fail when not authenticated', async () => {
-    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+    vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    });
 
     const command = createIssueCommand();
     await expect(command.parseAsync(['node', 'test', 'view', '1'])).rejects.toThrow(
@@ -886,7 +895,10 @@ describe('issue edit command', () => {
   });
 
   it('should fail when not authenticated', async () => {
-    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+    vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    });
 
     const command = createIssueCommand();
     await expect(
@@ -1028,7 +1040,10 @@ describe('issue close command', () => {
   });
 
   it('should fail when not authenticated', async () => {
-    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+    vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    });
 
     const command = createIssueCommand();
     await expect(command.parseAsync(['node', 'test', 'close', '1'])).rejects.toThrow(
@@ -1142,7 +1157,10 @@ describe('issue reopen command', () => {
   });
 
   it('should fail when not authenticated', async () => {
-    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+    vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    });
 
     const command = createIssueCommand();
     await expect(command.parseAsync(['node', 'test', 'reopen', '1'])).rejects.toThrow(
@@ -1294,7 +1312,10 @@ describe('issue delete command', () => {
   });
 
   it('should fail when not authenticated', async () => {
-    vi.mocked(mockClient.resumeSession).mockResolvedValue(false);
+    vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
+      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      process.exit(1);
+    });
 
     const command = createIssueCommand();
     await expect(command.parseAsync(['node', 'test', 'delete', '1', '--force'])).rejects.toThrow(

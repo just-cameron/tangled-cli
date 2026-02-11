@@ -1,6 +1,7 @@
 import type { AtpSessionData } from '@atproto/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TangledApiClient } from '../../src/lib/api-client.js';
+import { KeychainAccessError } from '../../src/lib/session.js';
 import * as sessionModule from '../../src/lib/session.js';
 import { mockSessionData, mockSessionMetadata } from '../helpers/mock-data.js';
 
@@ -30,15 +31,19 @@ vi.mock('@atproto/api', () => {
   };
 });
 
-// Mock session management
-vi.mock('../../src/lib/session.js', () => ({
-  saveSession: vi.fn(),
-  loadSession: vi.fn(),
-  deleteSession: vi.fn(),
-  saveCurrentSessionMetadata: vi.fn(),
-  getCurrentSessionMetadata: vi.fn(),
-  clearCurrentSessionMetadata: vi.fn(),
-}));
+// Mock session management (use importOriginal to preserve KeychainAccessError class)
+vi.mock('../../src/lib/session.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../src/lib/session.js')>();
+  return {
+    ...actual,
+    saveSession: vi.fn(),
+    loadSession: vi.fn(),
+    deleteSession: vi.fn(),
+    saveCurrentSessionMetadata: vi.fn(),
+    getCurrentSessionMetadata: vi.fn(),
+    clearCurrentSessionMetadata: vi.fn(),
+  };
+});
 
 describe('TangledApiClient', () => {
   let client: TangledApiClient;
@@ -149,6 +154,15 @@ describe('TangledApiClient', () => {
 
       expect(resumed).toBe(false);
       expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).toHaveBeenCalled();
+    });
+
+    it('should rethrow KeychainAccessError without clearing metadata', async () => {
+      vi.mocked(sessionModule.getCurrentSessionMetadata).mockRejectedValueOnce(
+        new KeychainAccessError('Cannot access keychain: locked')
+      );
+
+      await expect(client.resumeSession()).rejects.toThrow(KeychainAccessError);
+      expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).not.toHaveBeenCalled();
     });
   });
 

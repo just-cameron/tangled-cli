@@ -16,7 +16,7 @@ import {
 } from '../lib/issues-api.js';
 import type { IssueData } from '../lib/issues-api.js';
 import { buildRepoAtUri } from '../utils/at-uri.js';
-import { requireAuth } from '../utils/auth-helpers.js';
+import { ensureAuthenticated, requireAuth } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
 import { formatDate, formatIssueState, outputJson } from '../utils/formatting.js';
 import { validateIssueBody, validateIssueTitle } from '../utils/validation.js';
@@ -112,10 +112,7 @@ function createViewCommand(): Command {
       try {
         // 1. Validate auth
         const client = createApiClient();
-        if (!(await client.resumeSession())) {
-          console.error('✗ Not authenticated. Run "tangled auth login" first.');
-          process.exit(1);
-        }
+        await ensureAuthenticated(client);
 
         // 2. Get repo context
         const context = await getCurrentRepoContext();
@@ -188,10 +185,7 @@ function createEditCommand(): Command {
 
           // 2. Validate auth
           const client = createApiClient();
-          if (!(await client.resumeSession())) {
-            console.error('✗ Not authenticated. Run "tangled auth login" first.');
-            process.exit(1);
-          }
+          await ensureAuthenticated(client);
 
           // 3. Get repo context
           const context = await getCurrentRepoContext();
@@ -271,10 +265,7 @@ function createCloseCommand(): Command {
       try {
         // 1. Validate auth
         const client = createApiClient();
-        if (!(await client.resumeSession())) {
-          console.error('✗ Not authenticated. Run "tangled auth login" first.');
-          process.exit(1);
-        }
+        await ensureAuthenticated(client);
 
         // 2. Get repo context
         const context = await getCurrentRepoContext();
@@ -331,10 +322,7 @@ function createReopenCommand(): Command {
       try {
         // 1. Validate auth
         const client = createApiClient();
-        if (!(await client.resumeSession())) {
-          console.error('✗ Not authenticated. Run "tangled auth login" first.');
-          process.exit(1);
-        }
+        await ensureAuthenticated(client);
 
         // 2. Get repo context
         const context = await getCurrentRepoContext();
@@ -391,10 +379,7 @@ function createDeleteCommand(): Command {
     .action(async (issueId: string, options: { force?: boolean; json?: string | true }) => {
       // 1. Validate auth
       const client = createApiClient();
-      if (!(await client.resumeSession())) {
-        console.error('✗ Not authenticated. Run "tangled auth login" first.');
-        process.exit(1);
-      }
+      await ensureAuthenticated(client);
 
       // 2. Get repo context
       const context = await getCurrentRepoContext();
@@ -487,10 +472,7 @@ function createCreateCommand(): Command {
         try {
           // 1. Validate auth
           const client = createApiClient();
-          if (!(await client.resumeSession())) {
-            console.error('✗ Not authenticated. Run "tangled auth login" first.');
-            process.exit(1);
-          }
+          await ensureAuthenticated(client);
 
           // 2. Get repo context
           const context = await getCurrentRepoContext();
@@ -574,10 +556,7 @@ function createListCommand(): Command {
       try {
         // 1. Validate auth
         const client = createApiClient();
-        if (!(await client.resumeSession())) {
-          console.error('✗ Not authenticated. Run "tangled auth login" first.');
-          process.exit(1);
-        }
+        await ensureAuthenticated(client);
 
         // 2. Get repo context
         const context = await getCurrentRepoContext();

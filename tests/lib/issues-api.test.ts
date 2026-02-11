@@ -30,7 +30,7 @@ const createMockClient = (authenticated = true): TangledApiClient => {
   };
 
   return {
-    isAuthenticated: vi.fn(async () => authenticated),
+    isAuthenticated: vi.fn(() => authenticated),
     getSession: vi.fn(() =>
       authenticated ? { did: 'did:plc:test123', handle: 'test.bsky.social' } : null
     ),
