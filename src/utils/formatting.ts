@@ -45,8 +45,8 @@ function pickFields(obj: Record<string, unknown>, fields: string[]): Record<stri
  * @param data - The data to output (object or array of objects)
  * @param fields - Comma-separated field names to include; omit for all fields
  */
-export function outputJson(
-  data: Record<string, unknown> | Record<string, unknown>[],
+export function outputJson<T extends object>(
+  data: T | T[],
   fields?: string
 ): void {
   if (fields) {
@@ -57,13 +57,13 @@ export function outputJson(
     if (Array.isArray(data)) {
       console.log(
         JSON.stringify(
-          data.map((item) => pickFields(item, fieldList)),
+          data.map((item) => pickFields(item as Record<string, unknown>, fieldList)),
           null,
           2
         )
       );
     } else {
-      console.log(JSON.stringify(pickFields(data, fieldList), null, 2));
+      console.log(JSON.stringify(pickFields(data as Record<string, unknown>, fieldList), null, 2));
     }
   } else {
     console.log(JSON.stringify(data, null, 2));
