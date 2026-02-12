@@ -9,7 +9,8 @@
       "Bash(npm run lint:fix:*)",
       "Bash(npm run format:*)",
       "Bash(git fetch:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(npx vitest:*)"
     ]
   }
 }
