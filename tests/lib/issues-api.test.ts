@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
+import { getBacklinks } from '../../src/lib/constellation.js';
 import {
   closeIssue,
   createIssue,
@@ -11,6 +12,8 @@ import {
   resolveSequentialNumber,
   updateIssue,
 } from '../../src/lib/issues-api.js';
+
+vi.mock('../../src/lib/constellation.js');
 
 // Mock API client factory
 const createMockClient = (authenticated = true): TangledApiClient => {
@@ -161,44 +164,45 @@ describe('listIssues', () => {
     mockClient = createMockClient(true);
   });
 
-  it('should list issues for a repository', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-            cid: 'cid1',
-            value: {
-              $type: 'sh.tangled.repo.issue',
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'Issue 1',
-              body: 'Description 1',
-              createdAt: '2024-01-01T00:00:00.000Z',
-            },
-          },
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue2',
-            cid: 'cid2',
-            value: {
-              $type: 'sh.tangled.repo.issue',
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'Issue 2',
-              createdAt: '2024-01-02T00:00:00.000Z',
-            },
-          },
-        ],
-        cursor: undefined,
-      },
+  it('should list issues from multiple PDSs via constellation', async () => {
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 2,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue1' },
+        { did: 'did:plc:collab', collection: 'sh.tangled.repo.issue', rkey: 'issue2' },
+      ],
+      cursor: null,
     });
 
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            listRecords: mockListRecords,
+    const mockGetRecord = vi.fn()
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+          cid: 'cid1',
+          value: {
+            $type: 'sh.tangled.repo.issue',
+            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            title: 'Issue 1',
+            body: 'Description 1',
+            createdAt: '2024-01-01T00:00:00.000Z',
           },
         },
-      },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:collab/sh.tangled.repo.issue/issue2',
+          cid: 'cid2',
+          value: {
+            $type: 'sh.tangled.repo.issue',
+            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            title: 'Issue 2',
+            createdAt: '2024-01-02T00:00:00.000Z',
+          },
+        },
+      });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await listIssues({
@@ -211,73 +215,25 @@ describe('listIssues', () => {
       title: 'Issue 1',
       body: 'Description 1',
       uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      author: 'did:plc:owner',
     });
-  });
-
-  it('should filter issues by repository', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-            cid: 'cid1',
-            value: {
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'Issue 1',
-              createdAt: '2024-01-01T00:00:00.000Z',
-            },
-          },
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue2',
-            cid: 'cid2',
-            value: {
-              repo: 'at://did:plc:owner/sh.tangled.repo/other-repo',
-              title: 'Issue 2',
-              createdAt: '2024-01-02T00:00:00.000Z',
-            },
-          },
-        ],
-        cursor: undefined,
-      },
+    expect(result.issues[1]).toMatchObject({
+      title: 'Issue 2',
+      uri: 'at://did:plc:collab/sh.tangled.repo.issue/issue2',
+      author: 'did:plc:collab',
     });
 
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            listRecords: mockListRecords,
-          },
-        },
-      },
-    } as never);
-
-    const result = await listIssues({
-      client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-    });
-
-    // Should only include issue from my-repo, not other-repo
-    expect(result.issues).toHaveLength(1);
-    expect(result.issues[0].title).toBe('Issue 1');
+    expect(getBacklinks).toHaveBeenCalledWith(
+      'at://did:plc:owner/sh.tangled.repo/my-repo',
+      'sh.tangled.repo.issue',
+      '.repo',
+      50,
+      undefined
+    );
   });
 
   it('should return empty array when no issues found', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [],
-        cursor: undefined,
-      },
-    });
-
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            listRecords: mockListRecords,
-          },
-        },
-      },
-    } as never);
+    vi.mocked(getBacklinks).mockResolvedValue({ total: 0, records: [], cursor: null });
 
     const result = await listIssues({
       client: mockClient,
@@ -285,6 +241,17 @@ describe('listIssues', () => {
     });
 
     expect(result.issues).toEqual([]);
+  });
+
+  it('should forward cursor from constellation', async () => {
+    vi.mocked(getBacklinks).mockResolvedValue({ total: 100, records: [], cursor: 'nextpage' });
+
+    const result = await listIssues({
+      client: mockClient,
+      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+    });
+
+    expect(result.cursor).toBe('nextpage');
   });
 
   it('should throw error when not authenticated', async () => {
@@ -296,15 +263,6 @@ describe('listIssues', () => {
         repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
       })
     ).rejects.toThrow('Must be authenticated');
-  });
-
-  it('should throw error for invalid repo URI', async () => {
-    await expect(
-      listIssues({
-        client: mockClient,
-        repoAtUri: 'invalid-uri',
-      })
-    ).rejects.toThrow('Invalid repository AT-URI');
   });
 });
 
@@ -809,36 +767,43 @@ describe('resolveSequentialNumber', () => {
   });
 
   it('should scan issue list and return 1-based position for rkey displayId', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
-            cid: 'cid1',
-            value: {
-              $type: 'sh.tangled.repo.issue',
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'First',
-              createdAt: '2024-01-01T00:00:00.000Z',
-            },
-          },
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-b',
-            cid: 'cid2',
-            value: {
-              $type: 'sh.tangled.repo.issue',
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'Second',
-              createdAt: '2024-01-02T00:00:00.000Z',
-            },
-          },
-        ],
-        cursor: undefined,
-      },
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 2,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue-a' },
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue-b' },
+      ],
+      cursor: null,
     });
 
+    const mockGetRecord = vi.fn()
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
+          cid: 'cid1',
+          value: {
+            $type: 'sh.tangled.repo.issue',
+            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            title: 'First',
+            createdAt: '2024-01-01T00:00:00.000Z',
+          },
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-b',
+          cid: 'cid2',
+          value: {
+            $type: 'sh.tangled.repo.issue',
+            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            title: 'Second',
+            createdAt: '2024-01-02T00:00:00.000Z',
+          },
+        },
+      });
+
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await resolveSequentialNumber(
@@ -851,26 +816,29 @@ describe('resolveSequentialNumber', () => {
   });
 
   it('should return undefined when issue URI not found in list', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 1,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue-a' },
+      ],
+      cursor: null,
+    });
+
+    const mockGetRecord = vi.fn().mockResolvedValue({
       data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
-            cid: 'cid1',
-            value: {
-              $type: 'sh.tangled.repo.issue',
-              repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-              title: 'First',
-              createdAt: '2024-01-01T00:00:00.000Z',
-            },
-          },
-        ],
-        cursor: undefined,
+        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
+        cid: 'cid1',
+        value: {
+          $type: 'sh.tangled.repo.issue',
+          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          title: 'First',
+          createdAt: '2024-01-01T00:00:00.000Z',
+        },
       },
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await resolveSequentialNumber(

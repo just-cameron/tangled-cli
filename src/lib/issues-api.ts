@@ -1,6 +1,7 @@
 import { parseAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import type { TangledApiClient } from './api-client.js';
+import { getBacklinks } from './constellation.js';
 
 /**
  * Issue record type based on sh.tangled.repo.issue lexicon
@@ -162,39 +163,36 @@ export async function listIssues(params: ListIssuesParams): Promise<{
   // Validate authentication
   await requireAuth(client);
 
-  // Extract owner DID from repo AT-URI
-  const parsed = parseAtUri(repoAtUri);
-  if (!parsed) {
-    throw new Error(`Invalid repository AT-URI: ${repoAtUri}`);
-  }
-
-  const ownerDid = parsed.did;
-
   try {
-    // List all issue records for the owner
-    const response = await client.getAgent().com.atproto.repo.listRecords({
-      repo: ownerDid,
-      collection: 'sh.tangled.repo.issue',
+    // Query constellation for all issues that reference this repo across all PDSs
+    const backlinks = await getBacklinks(
+      repoAtUri,
+      'sh.tangled.repo.issue',
+      '.repo',
       limit,
-      cursor,
+      cursor
+    );
+
+    // Fetch each issue record individually (constellation only gives us the AT-URI components)
+    const issuePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
+      const response = await client.getAgent().com.atproto.repo.getRecord({
+        repo: did,
+        collection,
+        rkey,
+      });
+      return {
+        ...(response.data.value as IssueRecord),
+        uri: response.data.uri,
+        cid: response.data.cid as string,
+        author: did,
+      };
     });
 
-    // Filter to only issues for this specific repository
-    const issues: IssueWithMetadata[] = response.data.records
-      .filter((record) => {
-        const issueRecord = record.value as IssueRecord;
-        return issueRecord.repo === repoAtUri;
-      })
-      .map((record) => ({
-        ...(record.value as IssueRecord),
-        uri: record.uri,
-        cid: record.cid,
-        author: ownerDid,
-      }));
+    const issues = await Promise.all(issuePromises);
 
     return {
       issues,
-      cursor: response.data.cursor,
+      cursor: backlinks.cursor ?? undefined,
     };
   } catch (error) {
     if (error instanceof Error) {
