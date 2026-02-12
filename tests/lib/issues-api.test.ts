@@ -174,7 +174,8 @@ describe('listIssues', () => {
       cursor: null,
     });
 
-    const mockGetRecord = vi.fn()
+    const mockGetRecord = vi
+      .fn()
       .mockResolvedValueOnce({
         data: {
           uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
@@ -557,13 +558,7 @@ describe('getIssueState', () => {
   });
 
   it('should return open when no state records exist', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: { records: [] },
-    });
-
-    vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
-    } as never);
+    vi.mocked(getBacklinks).mockResolvedValue({ total: 0, records: [], cursor: null });
 
     const result = await getIssueState({
       client: mockClient,
@@ -571,31 +566,37 @@ describe('getIssueState', () => {
     });
 
     expect(result).toBe('open');
-    expect(mockListRecords).toHaveBeenCalledWith({
-      repo: 'did:plc:owner',
-      collection: 'sh.tangled.repo.issue.state',
-      limit: 100,
-    });
+    expect(getBacklinks).toHaveBeenCalledWith(
+      'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+      'sh.tangled.repo.issue.state',
+      '.issue',
+      100
+    );
   });
 
   it('should return closed when latest state record is closed', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
-            cid: 'cid1',
-            value: {
-              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-              state: 'sh.tangled.repo.issue.state.closed',
-            },
-          },
-        ],
-      },
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 1,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue.state', rkey: 'state1' },
+      ],
+      cursor: null,
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: vi.fn().mockResolvedValue({
+              data: {
+                uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
+                cid: 'cid1',
+                value: { state: 'sh.tangled.repo.issue.state.closed' },
+              },
+            }),
+          },
+        },
+      },
     } as never);
 
     const result = await getIssueState({
@@ -606,32 +607,39 @@ describe('getIssueState', () => {
     expect(result).toBe('closed');
   });
 
-  it('should return open when latest state record is open', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
-            cid: 'cid1',
-            value: {
-              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-              state: 'sh.tangled.repo.issue.state.closed',
-            },
-          },
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state2',
-            cid: 'cid2',
-            value: {
-              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-              state: 'sh.tangled.repo.issue.state.open',
-            },
-          },
-        ],
-      },
+  it('should return open when latest state record (by rkey) is open', async () => {
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 2,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue.state', rkey: 'aaa111' },
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue.state', rkey: 'bbb222' },
+      ],
+      cursor: null,
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: vi
+              .fn()
+              .mockResolvedValueOnce({
+                data: {
+                  uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/aaa111',
+                  cid: 'cid1',
+                  value: { state: 'sh.tangled.repo.issue.state.closed' },
+                },
+              })
+              .mockResolvedValueOnce({
+                data: {
+                  uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/bbb222',
+                  cid: 'cid2',
+                  value: { state: 'sh.tangled.repo.issue.state.open' },
+                },
+              }),
+          },
+        },
+      },
     } as never);
 
     const result = await getIssueState({
@@ -642,33 +650,48 @@ describe('getIssueState', () => {
     expect(result).toBe('open');
   });
 
-  it('should filter state records to only the target issue', async () => {
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
-            cid: 'cid1',
-            value: {
-              issue: 'at://did:plc:owner/sh.tangled.repo.issue/other-issue',
-              state: 'sh.tangled.repo.issue.state.closed',
-            },
-          },
-        ],
-      },
+  it('should use rkey sort order to determine most recent state across PDSs', async () => {
+    // Collaborator's close (rkey 'ccc333') is more recent than owner's open (rkey 'aaa111')
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 2,
+      records: [
+        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue.state', rkey: 'aaa111' },
+        { did: 'did:plc:collab', collection: 'sh.tangled.repo.issue.state', rkey: 'ccc333' },
+      ],
+      cursor: null,
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { listRecords: mockListRecords } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: vi
+              .fn()
+              .mockResolvedValueOnce({
+                data: {
+                  uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/aaa111',
+                  cid: 'cid1',
+                  value: { state: 'sh.tangled.repo.issue.state.open' },
+                },
+              })
+              .mockResolvedValueOnce({
+                data: {
+                  uri: 'at://did:plc:collab/sh.tangled.repo.issue.state/ccc333',
+                  cid: 'cid2',
+                  value: { state: 'sh.tangled.repo.issue.state.closed' },
+                },
+              }),
+          },
+        },
+      },
     } as never);
 
-    // The closed state is for a different issue, so this one should be open
     const result = await getIssueState({
       client: mockClient,
       issueUri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
     });
 
-    expect(result).toBe('open');
+    expect(result).toBe('closed');
   });
 
   it('should throw error when not authenticated', async () => {
@@ -776,7 +799,8 @@ describe('resolveSequentialNumber', () => {
       cursor: null,
     });
 
-    const mockGetRecord = vi.fn()
+    const mockGetRecord = vi
+      .fn()
       .mockResolvedValueOnce({
         data: {
           uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue-a',
@@ -818,9 +842,7 @@ describe('resolveSequentialNumber', () => {
   it('should return undefined when issue URI not found in list', async () => {
     vi.mocked(getBacklinks).mockResolvedValue({
       total: 1,
-      records: [
-        { did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue-a' },
-      ],
+      records: [{ did: 'did:plc:owner', collection: 'sh.tangled.repo.issue', rkey: 'issue-a' }],
       cursor: null,
     });
 
@@ -855,48 +877,48 @@ describe('getCompleteIssueData', () => {
   let mockClient: TangledApiClient;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     mockClient = createMockClient(true);
   });
 
   it('should return all fields including fetched state', async () => {
-    const mockGetRecord = vi.fn().mockResolvedValue({
-      data: {
-        uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-        cid: 'cid1',
-        value: {
-          $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
-          title: 'Test Issue',
-          body: 'Test body',
-          createdAt: '2024-01-01T00:00:00.000Z',
-        },
-      },
+    vi.mocked(getBacklinks).mockResolvedValue({
+      total: 1,
+      records: [{ did: 'did:plc:owner', collection: 'sh.tangled.repo.issue.state', rkey: 's1' }],
+      cursor: null,
     });
 
-    // getIssueState uses listRecords on the state collection
-    const mockListRecords = vi.fn().mockResolvedValue({
-      data: {
-        records: [
-          {
-            uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/s1',
-            cid: 'scid1',
-            value: {
-              issue: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-              state: 'sh.tangled.repo.issue.state.closed',
-            },
+    const mockGetRecord = vi
+      .fn()
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
+          cid: 'cid1',
+          value: {
+            $type: 'sh.tangled.repo.issue',
+            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            title: 'Test Issue',
+            body: 'Test body',
+            createdAt: '2024-01-01T00:00:00.000Z',
           },
-        ],
-      },
-    });
+        },
+      })
+      .mockResolvedValueOnce({
+        data: {
+          uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/s1',
+          cid: 'scid1',
+          value: { state: 'sh.tangled.repo.issue.state.closed' },
+        },
+      });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord, listRecords: mockListRecords } } },
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await getCompleteIssueData(
       mockClient,
       'at://did:plc:owner/sh.tangled.repo.issue/issue1',
-      '#1', // fast-path for number — no listRecords call for issues
+      '#1', // fast-path for number
       'at://did:plc:owner/sh.tangled.repo/my-repo'
     );
 
@@ -926,9 +948,8 @@ describe('getCompleteIssueData', () => {
       },
     });
 
-    const mockListRecords = vi.fn();
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord, listRecords: mockListRecords } } },
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await getCompleteIssueData(
@@ -941,10 +962,12 @@ describe('getCompleteIssueData', () => {
 
     expect(result.number).toBe(2);
     expect(result.state).toBe('closed');
-    expect(mockListRecords).not.toHaveBeenCalled();
+    expect(getBacklinks).not.toHaveBeenCalled();
   });
 
   it('should return undefined body and default open state when issue has no body or state records', async () => {
+    vi.mocked(getBacklinks).mockResolvedValue({ total: 0, records: [], cursor: null });
+
     const mockGetRecord = vi.fn().mockResolvedValue({
       data: {
         uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
@@ -959,14 +982,7 @@ describe('getCompleteIssueData', () => {
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: {
-        atproto: {
-          repo: {
-            getRecord: mockGetRecord,
-            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
-          },
-        },
-      },
+      com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
     const result = await getCompleteIssueData(

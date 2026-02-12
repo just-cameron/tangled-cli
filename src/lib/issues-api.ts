@@ -336,36 +336,36 @@ export async function getIssueState(params: GetIssueStateParams): Promise<'open'
   // Validate authentication
   await requireAuth(client);
 
-  // Parse issue URI to get author DID
-  const { did } = parseIssueUri(issueUri);
-
   try {
-    // Query state records for the issue author
-    const response = await client.getAgent().com.atproto.repo.listRecords({
-      repo: did,
-      collection: 'sh.tangled.repo.issue.state',
-      limit: 100,
-    });
+    // Query constellation for all state records that reference this issue across all PDSs
+    const backlinks = await getBacklinks(issueUri, 'sh.tangled.repo.issue.state', '.issue', 100);
 
-    // Filter to find state records for this specific issue
-    const stateRecords = response.data.records.filter((record) => {
-      const stateData = record.value as { issue?: string };
-      return stateData.issue === issueUri;
-    });
-
-    if (stateRecords.length === 0) {
-      // No state record found - default to open
+    if (backlinks.records.length === 0) {
       return 'open';
     }
 
-    // Get the most recent state record (AT Protocol records are sorted by index)
-    const latestState = stateRecords[stateRecords.length - 1];
-    const stateData = latestState.value as {
-      state?: 'sh.tangled.repo.issue.state.open' | 'sh.tangled.repo.issue.state.closed';
-    };
+    // Fetch each state record in parallel
+    const statePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
+      const response = await client.getAgent().com.atproto.repo.getRecord({
+        repo: did,
+        collection,
+        rkey,
+      });
+      return {
+        rkey,
+        value: response.data.value as {
+          state?: 'sh.tangled.repo.issue.state.open' | 'sh.tangled.repo.issue.state.closed';
+        },
+      };
+    });
 
-    // Return 'open' or 'closed' based on the state type
-    if (stateData.state === 'sh.tangled.repo.issue.state.closed') {
+    const stateRecords = await Promise.all(statePromises);
+
+    // Sort by rkey ascending — TID rkeys are time-ordered, so the last is most recent
+    stateRecords.sort((a, b) => a.rkey.localeCompare(b.rkey));
+    const latestState = stateRecords[stateRecords.length - 1];
+
+    if (latestState.value.state === 'sh.tangled.repo.issue.state.closed') {
       return 'closed';
     }
 
