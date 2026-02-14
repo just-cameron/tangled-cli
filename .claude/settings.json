@@ -10,7 +10,8 @@
       "Bash(npm run format:*)",
       "Bash(git fetch:*)",
       "Bash(git checkout:*)",
-      "Bash(npx vitest:*)"
+      "Bash(npx vitest:*)",
+      "WebFetch(domain:tangled.org)"
     ]
   }
 }
