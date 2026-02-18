@@ -1,6 +1,49 @@
-# Tangled CLI: Architecture & Implementation Plan
+# tang
 
-## Project Overview
+A CLI for [Tangled.org](https://tangled.org) — manage issues and repository context from the terminal. Designed to be usable by both humans and AI agents.
+
+## Installation
+
+```bash
+npm install -g @markbennett/tang
+```
+
+## Quick Start
+
+```bash
+# Authenticate with your Tangled PDS handle and an App Password
+tang auth login
+
+# From inside a git repo cloned from tangled.org:
+tang issue list
+tang issue create "Bug: something is broken" --body "Detailed description"
+tang issue view 1
+tang issue close 1
+
+# SSH key management
+tang ssh-key add ~/.ssh/id_ed25519.pub
+```
+
+## Commands
+
+| Command | Description |
+| :--- | :--- |
+| `tang auth login` | Authenticate with your PDS handle and App Password |
+| `tang auth logout` | Log out and clear stored session |
+| `tang issue list` | List issues for the current repo |
+| `tang issue create <title>` | Create a new issue |
+| `tang issue view <n>` | View an issue |
+| `tang issue close <n>` | Close an issue |
+| `tang issue reopen <n>` | Reopen an issue |
+| `tang ssh-key add <path>` | Upload a public SSH key to your account |
+| `tang context` | Show resolved repo context (DID, handle, name) |
+| `tang config` | View or set CLI configuration |
+
+Most commands accept `--json [fields]` for machine-readable output, useful for scripting and LLM integrations.
+
+---
+
+# Architecture & Implementation Notes
 
 **Goal:** Create a context-aware CLI for tangled.org that bridges the gap between the AT Protocol (XRPC) and standard Git.
 
@@ -228,9 +271,9 @@ node dist/index.js --version
 
 # Install globally for local testing
 npm link
-tangled --version
-tangled --help
-npm unlink -g tangled-cli  # Unlink when done
+tang --version
+tang --help
+npm unlink -g @markbennett/tang  # Unlink when done
 ```
 
 ### Project Structure

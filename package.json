@@ -1,15 +1,27 @@
 {
-  "name": "tangled-cli",
+  "name": "@markbennett/tang",
   "version": "0.0.1",
   "description": "A simple CLI for Tangled.org. Inspired by GitHub CLI, and usable by humans and AI.",
   "type": "module",
   "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "bin": {
-    "tangled": "./dist/index.js"
+    "tang": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "tsx src/index.ts",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
+    "clean": "rm -rf dist",
     "test": "vitest run",
     "test:watch": "vitest watch",
     "test:coverage": "vitest run --coverage",
