@@ -57,3 +57,10 @@ vi.mock('../../src/lib/issues-api.js');
 // Use importOriginal to preserve exported classes/errors if needed
 ```
 `isAuthenticated()` is synchronous — mock as `vi.fn(() => true)`, not `vi.fn(async () => true)`.
+
+### Version Control
+
+* Use small meaningful commits with clear messages.
+* Break work down into logical steps, committing each step separately.
+* Use feature branches when addressing issues. Include the issue number and a description of changes in the branch name (e.g., `issue-123-fix-auth`).
+* When work is complete push commits to remote and open a pull request for review. Include the issue number and a description of changes in the PR title (e.g., `Fix authentication flow for issue #123`).
