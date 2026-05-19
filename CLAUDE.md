@@ -4,19 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Commands
 
+Auth defaults to OAuth. Use `tang auth login --app-password` only for legacy app-password login.
+
 ```bash
-npm run dev -- <args>   # Run CLI in development (use this, not ./tangled)
-npm run build           # Compile TypeScript to dist/
-npm test                # Run all tests once
-npm run test:watch      # Run tests in watch mode
-npm run typecheck       # Type-check without building (prefer over npx tsc --noEmit)
-npm run lint            # Check with Biome
-npm run lint:fix        # Auto-fix lint/format issues
+bun run dev -- <args>   # Run CLI in development (use this, not ./tangled)
+bun run build           # Compile TypeScript to dist/
+bun run test            # Run all tests once
+bun run test:watch      # Run tests in watch mode
+bun run typecheck       # Type-check without building
+bun run lint            # Check with Biome
+bun run lint:fix        # Auto-fix lint/format issues
 ```
 
 Run a single test file:
 ```bash
-npx vitest run tests/commands/issue.test.ts
+bunx vitest run tests/commands/issue.test.ts
 ```
 
 ## Architecture
@@ -37,7 +39,7 @@ npx vitest run tests/commands/issue.test.ts
   - `formatting.ts` — `outputJson<T extends object>(data, fields?)`, `formatDate`, `formatIssueState`
   - `at-uri.ts` — Parse/build AT-URIs and repo AT-URIs
   - `body-input.ts` — Reads `--body` / `--body-file` / stdin (`-F -`)
-- **`src/lexicon/`** — Auto-generated AT Protocol type definitions; regenerate with `npm run codegen`
+- **`src/lexicon/`** — Auto-generated AT Protocol type definitions; regenerate with `bun run codegen`
 
 ### Key patterns
 

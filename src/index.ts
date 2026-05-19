@@ -17,7 +17,7 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
 const program = new Command();
 
 program
-  .name('tangled')
+  .name('tang')
   .description('A CLI for Tangled.org - AT Protocol-based Git hosting')
   .version(packageJson.version, '-v, --version', 'Output the current version');
 

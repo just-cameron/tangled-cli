@@ -5,14 +5,17 @@ A CLI for [Tangled.org](https://tangled.org) — manage issues and repository co
 ## Installation
 
 ```bash
-npm install -g @markbennett/tang
+bun install -g @markbennett/tang
 ```
 
 ## Quick Start
 
 ```bash
-# Authenticate with your Tangled PDS handle and an App Password
+# Authenticate with OAuth in your browser
 tang auth login
+
+# Or use legacy app-password login
+tang auth login --app-password
 
 # From inside a git repo cloned from tangled.org:
 tang issue list
@@ -28,7 +31,8 @@ tang ssh-key add ~/.ssh/id_ed25519.pub
 
 | Command | Description |
 | :--- | :--- |
-| `tang auth login` | Authenticate with your PDS handle and App Password |
+| `tang auth login` | Authenticate with OAuth in your browser |
+| `tang auth login --app-password` | Authenticate with a PDS app password |
 | `tang auth logout` | Log out and clear stored session |
 | `tang issue list` | List issues for the current repo |
 | `tang issue create <title>` | Create a new issue |
@@ -82,7 +86,7 @@ The CLI acts as a "Context Engine" before it even hits the API.
 
 | Component         | Library                 | Purpose                                                                                        |
 | :---------------- | :---------------------- | :--------------------------------------------------------------------------------------------- |
-| **Framework**     | **commander**           | CLI routing and command parsing (e.g., `tangled repo create`).                                 |
+| **Framework**     | **commander**           | CLI routing and command parsing (e.g., `tang repo create`).                                 |
 | **API Client**    | **@atproto/api**        | Official AT Protocol XRPC client, session management, and record operations.                   |
 | **Lexicon Tools** | **@atproto/lexicon**    | Schema validation for custom Tangled.org lexicons (e.g., `sh.tangled.publicKey`).             |
 | **Git Context**   | **git-url-parse**       | Parses remote URLs to extract the Tangled DID/NSID from `.git/config`.                        |
@@ -101,14 +105,14 @@ To make this tool accessible to Claude Code/Gemini, we adopt gh's best patterns:
 
 LLMs often hallucinate repo IDs.
 
-- **Design:** If the user/LLM runs tangled issue list inside a folder, **do not** ask for the repo DID. Infer it.
+- **Design:** If the user/LLM runs `tang issue list` inside a folder, **do not** ask for the repo DID. Infer it.
 - **Fallback:** Only error if no git remote is found.
 
 ### Rule 2: Precision JSON (--json \<fields\>)
 
 LLMs have token limits. Returning a 50KB repo object is wasteful.
 
-- **Feature:** tangled repo view \--json name,cloneUrl,description
+- **Feature:** tang repo view \--json name,cloneUrl,description
 - **Implementation:** Use lodash/pick to filter the API response before printing to stdout.
 
 ### Rule 3: Fail Fast, Fail Loud
@@ -117,7 +121,7 @@ LLMs can't read error messages buried in HTML or long stack traces. Provide a `-
 
 ### Rule 4: Flexible Input for Issue Bodies
 
-Following `gh`'s pattern, `tangled issue create` will support various ways to provide the issue body, making it LLM-friendly and flexible for scripting. It will accept:
+Following `gh`'s pattern, `tang issue create` will support various ways to provide the issue body, making it LLM-friendly and flexible for scripting. It will accept:
 
 - `--body "Text"` or `-b "Text"` for a direct string.
 - `--body-file ./file.md` or `-F ./file.md` to read from a file.
@@ -133,45 +137,45 @@ Following `gh`'s pattern, `tangled issue create` will support various ways to pr
 ## Examples Tangled CLI Usage
 
 ```bash
-tangled auth login (opens a browser for auth)
-tangled repo create my-new-repo
+tang auth login
+tang repo create my-new-repo
 cd my-new-repo
-tangled issue create "Bug: Something is broken" --body "Detailed description of the bug here."
-echo "Another bug description from stdin." | tangled issue create "Bug: From stdin" --body-file -
-tangled issue list --json "id,title"
-tangled pr create --base main --head my-feature --title "Add new feature" --body-file ./pr_description.md
-tangled pr view 123
-tangled pr comment 123 --body "Looks good, small change needed."
+tang issue create "Bug: Something is broken" --body "Detailed description of the bug here."
+echo "Another bug description from stdin." | tang issue create "Bug: From stdin" --body-file -
+tang issue list --json "id,title"
+tang pr create --base main --head my-feature --title "Add new feature" --body-file ./pr_description.md
+tang pr view 123
+tang pr comment 123 --body "Looks good, small change needed."
 ```
 
 ## Basic Commands
 
 Basic commands include auth, key management, repo creation, issue management, and pull request management.
 
-`tangled auth login`
+`tang auth login`
 
 - Logs in the user, ideally through a web browser flow for security.
-  `tangled auth logout`
+  `tang auth logout`
 - Logs out the user, clearing the session.
-  `tangled ssh-key add <public-key-path>`
+  `tang ssh-key add <public-key-path>`
 - Uploads the provided public SSH key to the user's tangled.org account via the API.
-  `tangled ssh-key verify`
+  `tang ssh-key verify`
 - Verifies that the user's SSH key is correctly set up and can authenticate with tangled.org. Returns the associated DID and handle if successful.
-  `tangled repo create <repo-name>`
+  `tang repo create <repo-name>`
 - Creates a new repository under the user's account.
-  `tangled repo view [--json <fields>]`
+  `tang repo view [--json <fields>]`
 - Displays details about the current repository. If `--json` is provided, outputs only the specified fields in JSON format.
-  `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
+  `tang issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
 - Creates a new issue in the current repository with the given title and optional body, which can be provided via flag, file, or stdin.
-  `tangled pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]`
+  `tang pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]`
 - Creates a new pull request in the current repository from a head branch to a base branch.
-  `tangled pr list [--json <fields>]`
+  `tang pr list [--json <fields>]`
 - Lists pull requests for the current repository.
-  `tangled pr view <id> [--json <fields>]`
+  `tang pr view <id> [--json <fields>]`
 - Displays detailed information about a specific pull request, including comments.
-  `tangled pr comment <id> [--body <body> | --body-file <file> | -F -]`
+  `tang pr comment <id> [--body <body> | --body-file <file> | -F -]`
 - Adds a comment to a pull request.
-  `tangled pr review <id> --comment <comment> [--approve | --request-changes]`
+  `tang pr review <id> --comment <comment> [--approve | --request-changes]`
 - Submits a review for a pull request, with optional approval or request for changes.
 
 ## Design Decisions & Outstanding Issues
@@ -182,7 +186,7 @@ This section documents key design decisions and tracks outstanding architectural
 
 - **Original Question:** How does `gh` manage SSH keys, and can we follow that pattern?
 - **Resolution:** Analysis shows that `gh` does _not_ manage private keys. It facilitates uploading the user's _public_ key to their GitHub account. The local SSH agent handles the private key.
-- **Our Approach:** The `tangled ssh-key add` command follows this exact pattern. It provides a user-friendly way to upload a public key to `tangled.org`. This resolves the core of this issue, as it is compatible with external key managers like 1Password's SSH agent.
+- **Our Approach:** The `tang ssh-key add` command follows this exact pattern. It provides a user-friendly way to upload a public key to `tangled.org`. This resolves the core of this issue, as it is compatible with external key managers like 1Password's SSH agent.
 
 ### (Decided) Secure Session Storage
 
@@ -200,21 +204,18 @@ This section documents key design decisions and tracks outstanding architectural
   3.  Project-specific config file (e.g., `.tangled/config.yml` in the current directory)
   4.  Global user config file (e.g., `~/.config/tangled/config.yml`)
 
-### (Decided for V1) Authentication Flow: App Passwords (PDS)
+### Authentication Flow: OAuth by Default
 
-- **Original Question:** Can we allow auth through a web browser?
-- **Resolution:** For the initial version, the CLI will use **App Passwords** for authentication. This is the standard and simplest method for third-party AT Protocol clients and aligns with existing practices.
-- **`tangled auth login` Flow:** When running `tangled auth login`, the CLI will prompt the user for their **PDS handle** (e.g., `@mark.bsky.social`) and an **App Password**.
-- **Generating an App Password:** Users typically generate App Passwords from their PDS's settings (e.g., in the official Bluesky app under "Settings -> App Passwords", or on their self-hosted PDS web interface). The CLI **does not** generate app passwords.
-- **Session Management:** The session established is with the user's PDS, and this authenticated session is then used to interact with `tangled.org`'s App View/Service.
-- **OAuth Support:** Implementing a web-based OAuth flow (similar to `gh`'s approach) is more complex and not a standard part of the AT Protocol client authentication flow. This approach is deferred for future consideration.
+- **Default:** `tang auth login` uses the AT Protocol OAuth loopback flow. It asks for your handle, opens your browser, receives the callback on `127.0.0.1`, and stores the OAuth session in the OS keychain.
+- **Fallback:** `tang auth login --app-password` uses the legacy PDS app-password flow. Use this only when OAuth is unavailable.
+- **Session Management:** OAuth and app-password sessions are both stored in the OS keychain. Non-secret metadata lives in `~/.config/tangled/session.json`.
 
 ## Future Expansion Opportunities
 
 The analysis of the `tangled.org` API revealed a rich set of features that are not yet part of the initial CLI plan but represent significant opportunities for future expansion. These include:
 
 - **CI/CD Pipelines:** Commands to view pipeline status and manage CI/CD jobs.
-- **Repository Secrets:** A dedicated command set for managing CI/CD secrets within a repository (`tangled repo secret ...`).
+- **Repository Secrets:** A dedicated command set for managing CI/CD secrets within a repository (`tang repo secret ...`).
 - **Advanced Git Operations:** Commands to interact with the commit log, diffs, branches, and tags directly via the API, augmenting local `git` commands.
 - **Social & Feed Interactions:** Commands for starring repositories, reacting to feed items, and managing the user's social graph (following/unfollowing).
 - **Label Management:** Commands to create, apply, and remove labels from issues and pull requests.
@@ -225,55 +226,55 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 
 ## Task Management
 
-Tasks are tracked in the [Tangled issue tracker](https://tangled.org/markbennett.ca/tangled-cli/issues). Use `tangled issue list` or `tangled issue view <n>` to browse tasks.
+Tasks are tracked in the [Tangled issue tracker](https://tangled.org/markbennett.ca/tangled-cli/issues). Use `tang issue list` or `tang issue view <n>` to browse tasks.
 
 ## Development
 
 ### Prerequisites
 
 - Node.js 22.0.0 or higher (latest LTS)
-- npm (comes with Node.js)
+- Bun
 
 ### Installation
 
 Clone the repository and install dependencies:
 
 ```bash
-npm install
+bun install
 ```
 
 ### Available Scripts
 
-- `npm run dev` - Run the CLI in development mode (with hot reload via tsx)
-- `npm run build` - Build TypeScript to JavaScript (output to `dist/`)
-- `npm test` - Run tests once
-- `npm run test:watch` - Run tests in watch mode
-- `npm run test:coverage` - Run tests with coverage report
-- `npm run lint` - Check code with Biome linter
-- `npm run lint:fix` - Auto-fix linting issues
-- `npm run format` - Format code with Biome
-- `npm run typecheck` - Type check without building
+- `bun run dev` - Run the CLI in development mode (with hot reload via tsx)
+- `bun run build` - Build TypeScript to JavaScript (output to `dist/`)
+- `bun run test` - Run tests once
+- `bun run test:watch` - Run tests in watch mode
+- `bun run test:coverage` - Run tests with coverage report
+- `bun run lint` - Check code with Biome linter
+- `bun run lint:fix` - Auto-fix linting issues
+- `bun run format` - Format code with Biome
+- `bun run typecheck` - Type check without building
 
 ### Running Locally
 
-When running commands against the development version, use `npm run dev` with the `--` separator to pass arguments to the CLI:
+When running commands against the development version, use `bun run dev` with the `--` separator to pass arguments to the CLI:
 
 ```bash
 # Run the CLI in development mode
-npm run dev -- --version
-npm run dev -- --help
-npm run dev -- issue list
-npm run dev -- issue create "My issue title" --body "Issue body"
+bun run dev -- --version
+bun run dev -- --help
+bun run dev -- issue list
+bun run dev -- issue create "My issue title" --body "Issue body"
 
 # Build and run the production version
-npm run build
+bun run build
 node dist/index.js --version
 
 # Install globally for local testing
-npm link
+bun link
 tang --version
 tang --help
-npm unlink -g @markbennett/tang  # Unlink when done
+bun unlink -g @markbennett/tang  # Unlink when done
 ```
 
 ### Project Structure
@@ -347,9 +348,9 @@ describe('MyFeature', () => {
 Before submitting code, verify:
 - [ ] All validation functions are in `validation.ts`
 - [ ] Comprehensive tests are written and passing
-- [ ] TypeScript compilation passes (`npm run typecheck`)
-- [ ] Linting passes (`npm run lint`)
-- [ ] All tests pass (`npm test`)
+- [ ] TypeScript compilation passes (`bun run typecheck`)
+- [ ] Linting passes (`bun run lint`)
+- [ ] All tests pass (`bun run test`)
 
 ### Technology Stack
 

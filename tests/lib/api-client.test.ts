@@ -1,4 +1,4 @@
-import type { AtpSessionData } from '@atproto/api';
+import type { AtpAgent, AtpSessionData } from '@atproto/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TangledApiClient } from '../../src/lib/api-client.js';
 import * as sessionModule from '../../src/lib/session.js';
@@ -68,6 +68,7 @@ describe('TangledApiClient', () => {
         handle: mockSessionData.handle,
         did: mockSessionData.did,
         pds: 'https://bsky.social',
+        authType: 'app-password',
         lastUsed: expect.any(String),
       });
     });
@@ -81,7 +82,7 @@ describe('TangledApiClient', () => {
 
     it('should throw error on login failure', async () => {
       const agent = client.getAgent();
-      vi.mocked(agent.login).mockResolvedValueOnce({
+      vi.mocked((agent as AtpAgent).login).mockResolvedValueOnce({
         success: false,
         headers: {},
         data: undefined,
@@ -148,7 +149,9 @@ describe('TangledApiClient', () => {
       vi.mocked(sessionModule.loadSession).mockResolvedValue(mockSessionData);
 
       const agent = client.getAgent();
-      vi.mocked(agent.resumeSession).mockRejectedValueOnce(new Error('Resume failed'));
+      vi.mocked((agent as AtpAgent).resumeSession).mockRejectedValueOnce(
+        new Error('Resume failed')
+      );
 
       const resumed = await client.resumeSession();
 

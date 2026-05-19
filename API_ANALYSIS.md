@@ -10,7 +10,7 @@ The `tangled.org` API leverages the AT Protocol (ATProto), combining custom lexi
 
 All commands currently outlined in `TODO.md` appear to be implementable with the existing API structure.
 
-### Authentication (`tangled auth login`)
+### Authentication (`tang auth login`)
 
 *   **Feasible.** This will utilize the standard AT Protocol `com.atproto.server.createSession` procedure. This procedure is part of the core ATProto specification and would be handled by the `@atproto/api` library, not requiring a specific `tangled.org` lexicon.
 
@@ -53,7 +53,7 @@ All commands currently outlined in `TODO.md` appear to be implementable with the
 
 #### Implementation Approach
 
-*   **`tangled ssh-key add <public-key-path>`**:
+*   **`tang ssh-key add <public-key-path>`**:
     *   **Feasible (using generic ATProto record creation).**
     *   Uses `AtpAgent.com.atproto.repo.createRecord()` with:
       - `collection: "sh.tangled.publicKey"`
@@ -61,7 +61,7 @@ All commands currently outlined in `TODO.md` appear to be implementable with the
     *   The record will be stored on the user's PDS (Personal Data Server)
     *   The CLI reads the public key file, validates the format, and creates the record
 
-*   **`tangled ssh-key verify`**:
+*   **`tang ssh-key verify`**:
     *   **Feasible.** This command can be implemented by:
         1.  Executing `ssh -T git@tangled.org` to capture the authenticated user's DID from the server response
         2.  Parsing the DID from the SSH output
@@ -93,16 +93,16 @@ All commands currently outlined in `TODO.md` appear to be implementable with the
 
 ### Repository Management
 
-*   **`tangled repo create <repo-name>`**:
+*   **`tang repo create <repo-name>`**:
     *   **Feasible.** The `sh.tangled.repo.create` procedure (defined in `core/lexicons/repo/create.json`) directly supports this. It requires an `rkey` (repository key/name) and can optionally accept a `defaultBranch` and a `source` URL for forking/importing.
-*   **`tangled repo view [--json <fields>]`**:
+*   **`tang repo view [--json <fields>]`**:
     *   **Feasible (using generic ATProto record retrieval).** The `core/lexicons/repo/repo.json` defines the `sh.tangled.repo` record type. To view details of a specific repository, the CLI would use the generic ATProto `com.atproto.repo.getRecord` procedure, specifying `collection: "sh.tangled.repo"` and the appropriate record key (`rkey`).
 
 ### Issue Management
 
-*   **`tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`**:
+*   **`tang issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`**:
     *   **Feasible (using generic ATProto record creation).** The `core/lexicons/issue/issue.json` defines the `sh.tangled.repo.issue` record type. To create a new issue, the CLI would use the generic ATProto `com.atproto.repo.createRecord` procedure. The `collection` would be `sh.tangled.repo.issue`, and the `record` data would include the `repo` (AT-URI of the repository), `title`, and `body` (if provided).
-*   **`tangled issue list [--json "id,title"]`**:
+*   **`tang issue list [--json "id,title"]`**:
     *   **Feasible (using generic ATProto record listing).** To list issues for a repository, the CLI would use the generic ATProto `com.atproto.repo.listRecords` procedure, specifying `collection: "sh.tangled.repo.issue"`. Client-side filtering by the `repo` field (which is an AT-URI to the parent repository) might be necessary if the API does not offer server-side filtering for this specific collection.
 
 ## API Resources and Actions Missing from Current CLI Plan
@@ -112,17 +112,17 @@ The `tangled.org` API, as revealed by its lexicons, exposes numerous capabilitie
 ### Pull Requests
 
 A comprehensive set of lexicons (`pulls/pull.json`, `pulls/open.json`, `pulls/merged.json`, `pulls/comment.json`, `pulls/closed.json`, `pulls/state.json`) indicates a fully-fledged Pull Request system.
-*   **Potential CLI Commands:** `tangled pulls list`, `tangled pulls view <id>`, `tangled pulls create`, `tangled pulls merge`, `tangled pulls close`, `tangled pulls comment`.
+*   **Potential CLI Commands:** `tang pulls list`, `tang pulls view <id>`, `tang pulls create`, `tang pulls merge`, `tang pulls close`, `tang pulls comment`.
 
 ### CI/CD Pipelines
 
 Lexicons such as `pipeline/pipeline.json`, `pipeline/status.json`, and `pipeline/cancelPipeline.json` suggest integration with a CI/CD system.
-*   **Potential CLI Commands:** `tangled pipeline status`, `tangled pipeline cancel <id>`.
+*   **Potential CLI Commands:** `tang pipeline status`, `tang pipeline cancel <id>`.
 
 ### Repository Secrets
 
 The `repo/addSecret.json`, `repo/listSecrets.json`, and `repo/removeSecret.json` lexicons allow for managing CI/CD secrets specific to a repository.
-*   **Potential CLI Commands:** `tangled repo secret add <key> <value>`, `tangled repo secret list`, `tangled repo secret remove <key>`.
+*   **Potential CLI Commands:** `tang repo secret add <key> <value>`, `tang repo secret list`, `tang repo secret remove <key>`.
 
 ### Advanced Git Operations
 
@@ -133,27 +133,27 @@ Several lexicons expose finer-grained Git operations directly via XRPC, potentia
 *   `repo/tags.json`, `repo/tag.json` (manage tags)
 *   `repo/compare.json` (compare two refs)
 *   `git/refUpdate.json` (update Git references)
-*   **Potential CLI Commands:** `tangled repo log`, `tangled repo diff`, `tangled branch list`, etc.
+*   **Potential CLI Commands:** `tang repo log`, `tang repo diff`, `tang branch list`, etc.
 
 ### Social & Feed Interactions
 
 Lexicons like `graph/follow.json`, `feed/star.json`, and `feed/reaction.json` suggest social networking features common in ATProto applications.
-*   **Potential CLI Commands:** `tangled follow <did>`, `tangled star <uri>`, `tangled react <uri>`.
+*   **Potential CLI Commands:** `tang follow <did>`, `tang star <uri>`, `tang react <uri>`.
 
 ### Labels
 
 The `label/definition.json` and `label/op.json` lexicons provide mechanisms for defining and applying labels to various resources (e.g., issues, pull requests).
-*   **Potential CLI Commands:** `tangled label add`, `tangled label list`.
+*   **Potential CLI Commands:** `tang label add`, `tang label list`.
 
 ### Repository Collaboration
 
 The `repo/collaborator.json` lexicon suggests managing collaborators on a repository.
-*   **Potential CLI Commands:** `tangled repo collaborator add`, `tangled repo collaborator list`.
+*   **Potential CLI Commands:** `tang repo collaborator add`, `tang repo collaborator list`.
 
 ### Forking and Syncing
 
 `repo/forkSync.json` and `repo/forkStatus.json` point to specific API support for managing repository forks and their synchronization status.
-*   **Potential CLI Commands:** `tangled repo fork`, `tangled repo fork-sync`.
+*   **Potential CLI Commands:** `tang repo fork`, `tang repo fork-sync`.
 
 ## Conclusion
 

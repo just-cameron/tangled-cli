@@ -12,7 +12,7 @@ export async function requireAuth(client: TangledApiClient): Promise<{
   handle: string;
 }> {
   if (!client.isAuthenticated()) {
-    throw new Error('Must be authenticated. Run "tangled auth login" first.');
+    throw new Error('Must be authenticated. Run "tang auth login" first.');
   }
 
   const session = client.getSession();
@@ -43,7 +43,7 @@ export async function ensureAuthenticated(client: TangledApiClient): Promise<voi
   try {
     const authenticated = await client.resumeSession();
     if (!authenticated) {
-      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      console.error('✗ Not authenticated. Run "tang auth login" first.');
       process.exit(1);
     }
   } catch (error) {

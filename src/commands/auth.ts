@@ -1,7 +1,8 @@
 import { Command } from 'commander';
 import { createApiClient } from '../lib/api-client.js';
+import { loginWithOAuth } from '../lib/oauth.js';
 import { getCurrentSessionMetadata } from '../lib/session.js';
-import { promptForLogin } from '../utils/prompts.js';
+import { promptForIdentifier, promptForLogin } from '../utils/prompts.js';
 
 /**
  * Create the auth command with login and logout subcommands
@@ -14,17 +15,28 @@ export function createAuthCommand(): Command {
   auth
     .command('login')
     .description('Login to your AT Protocol account')
-    .action(async () => {
+    .option('--app-password', 'Use legacy app-password login instead of OAuth')
+    .action(async (options: { appPassword?: boolean }) => {
       try {
-        const client = createApiClient();
-
         // Check if already logged in
         const existingSession = await getCurrentSessionMetadata();
         if (existingSession) {
           console.log(`Already logged in as @${existingSession.handle}`);
-          console.log('Run "tangled auth logout" first to switch accounts');
+          console.log('Run "tang auth logout" first to switch accounts');
           process.exit(0);
         }
+
+        if (!options.appPassword) {
+          const identifier = await promptForIdentifier();
+          console.log('\nStarting OAuth login...');
+          const session = await loginWithOAuth(identifier);
+
+          console.log(`\n✓ Successfully logged in as @${session.handle}`);
+          console.log(`  DID: ${session.did}`);
+          return;
+        }
+
+        const client = createApiClient();
 
         // Prompt for credentials
         const { identifier, password } = await promptForLogin();
@@ -83,10 +95,11 @@ export function createAuthCommand(): Command {
           console.log(`  Handle: @${session.handle}`);
           console.log(`  DID: ${session.did}`);
           console.log(`  PDS: ${session.pds}`);
+          console.log(`  Auth: ${session.authType ?? 'app-password'}`);
           console.log(`  Last used: ${new Date(session.lastUsed).toLocaleString()}`);
         } else {
           console.log('✗ Not authenticated');
-          console.log('Run "tangled auth login" to authenticate');
+          console.log('Run "tang auth login" to authenticate');
         }
       } catch (error) {
         console.error(

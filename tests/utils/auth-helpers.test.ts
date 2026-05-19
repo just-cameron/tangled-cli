@@ -33,7 +33,7 @@ describe('requireAuth', () => {
     const mockClient = createMockClient(false, null);
 
     await expect(requireAuth(mockClient)).rejects.toThrow(
-      'Must be authenticated. Run "tangled auth login" first.'
+      'Must be authenticated. Run "tang auth login" first.'
     );
   });
 
@@ -79,7 +79,7 @@ describe('ensureAuthenticated', () => {
 
     await expect(ensureAuthenticated(mockClient)).rejects.toThrow('process.exit called');
     expect(mockConsoleError).toHaveBeenCalledWith(
-      '✗ Not authenticated. Run "tangled auth login" first.'
+      '✗ Not authenticated. Run "tang auth login" first.'
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });

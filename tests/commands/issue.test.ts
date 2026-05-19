@@ -164,7 +164,7 @@ describe('issue create command', () => {
   describe('authentication required', () => {
     it('should fail when not authenticated', async () => {
       vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-        console.error('✗ Not authenticated. Run "tangled auth login" first.');
+        console.error('✗ Not authenticated. Run "tang auth login" first.');
         process.exit(1);
       });
 
@@ -175,7 +175,7 @@ describe('issue create command', () => {
       );
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '✗ Not authenticated. Run "tangled auth login" first.'
+        '✗ Not authenticated. Run "tang auth login" first.'
       );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
@@ -423,7 +423,7 @@ describe('issue list command', () => {
   describe('authentication required', () => {
     it('should fail when not authenticated', async () => {
       vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-        console.error('✗ Not authenticated. Run "tangled auth login" first.');
+        console.error('✗ Not authenticated. Run "tang auth login" first.');
         process.exit(1);
       });
 
@@ -432,7 +432,7 @@ describe('issue list command', () => {
       await expect(command.parseAsync(['node', 'test', 'list'])).rejects.toThrow('process.exit(1)');
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(
-        '✗ Not authenticated. Run "tangled auth login" first.'
+        '✗ Not authenticated. Run "tang auth login" first.'
       );
       expect(processExitSpy).toHaveBeenCalledWith(1);
     });
@@ -696,7 +696,7 @@ describe('issue view command', () => {
 
   it('should fail when not authenticated', async () => {
     vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      console.error('✗ Not authenticated. Run "tang auth login" first.');
       process.exit(1);
     });
 
@@ -706,7 +706,7 @@ describe('issue view command', () => {
     );
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '✗ Not authenticated. Run "tangled auth login" first.'
+      '✗ Not authenticated. Run "tang auth login" first.'
     );
   });
 
@@ -896,7 +896,7 @@ describe('issue edit command', () => {
 
   it('should fail when not authenticated', async () => {
     vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      console.error('✗ Not authenticated. Run "tang auth login" first.');
       process.exit(1);
     });
 
@@ -906,7 +906,7 @@ describe('issue edit command', () => {
     ).rejects.toThrow('process.exit(1)');
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      '✗ Not authenticated. Run "tangled auth login" first.'
+      '✗ Not authenticated. Run "tang auth login" first.'
     );
   });
 
@@ -1041,7 +1041,7 @@ describe('issue close command', () => {
 
   it('should fail when not authenticated', async () => {
     vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      console.error('✗ Not authenticated. Run "tang auth login" first.');
       process.exit(1);
     });
 
@@ -1158,7 +1158,7 @@ describe('issue reopen command', () => {
 
   it('should fail when not authenticated', async () => {
     vi.mocked(authHelpers.ensureAuthenticated).mockImplementationOnce(async () => {
-      console.error('✗ Not authenticated. Run "tangled auth login" first.');
+      console.error('✗ Not authenticated. Run "tang auth login" first.');
       process.exit(1);
     });
 

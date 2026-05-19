@@ -1,7 +1,9 @@
 import type { AtpSessionData } from '@atproto/api';
-import { AtpAgent } from '@atproto/api';
+import { type Agent, AtpAgent } from '@atproto/api';
+import { restoreOAuthAgent } from './oauth.js';
 import {
   clearCurrentSessionMetadata,
+  deleteOAuthSession,
   deleteSession,
   getCurrentSessionMetadata,
   KeychainAccessError,
@@ -15,7 +17,8 @@ import {
  * Integrates with session management for persistent authentication
  */
 export class TangledApiClient {
-  private agent: AtpAgent;
+  private agent: AtpAgent | Agent;
+  private sessionIdentity?: { did: string; handle: string };
 
   constructor(serviceUrl = 'https://bsky.social') {
     this.agent = new AtpAgent({ service: serviceUrl });
@@ -30,7 +33,8 @@ export class TangledApiClient {
    */
   async login(identifier: string, password: string): Promise<AtpSessionData> {
     try {
-      const response = await this.agent.login({ identifier, password });
+      const credentialAgent = this.agent as AtpAgent;
+      const response = await credentialAgent.login({ identifier, password });
 
       if (!response.success || !response.data) {
         throw new Error('Login failed: No session data received');
@@ -49,7 +53,8 @@ export class TangledApiClient {
       await saveCurrentSessionMetadata({
         handle: sessionData.handle,
         did: sessionData.did,
-        pds: this.agent.service.toString(),
+        pds: credentialAgent.service.toString(),
+        authType: 'app-password',
         lastUsed: new Date().toISOString(),
       });
 
@@ -70,7 +75,11 @@ export class TangledApiClient {
     }
 
     // Delete session from keychain
-    await deleteSession(metadata.did);
+    if (metadata.authType === 'oauth') {
+      await deleteOAuthSession(metadata.did);
+    } else {
+      await deleteSession(metadata.did);
+    }
 
     // Clear current session metadata
     await clearCurrentSessionMetadata();
@@ -88,6 +97,16 @@ export class TangledApiClient {
         return false;
       }
 
+      if (metadata.authType === 'oauth') {
+        this.agent = await restoreOAuthAgent(metadata.did, metadata.pds);
+        this.sessionIdentity = { did: metadata.did, handle: metadata.handle };
+        await saveCurrentSessionMetadata({
+          ...metadata,
+          lastUsed: new Date().toISOString(),
+        });
+        return true;
+      }
+
       const sessionData = await loadSession(metadata.did);
 
       if (!sessionData) {
@@ -97,7 +116,8 @@ export class TangledApiClient {
       }
 
       // Resume session with agent
-      await this.agent.resumeSession(sessionData);
+      await (this.agent as AtpAgent).resumeSession(sessionData);
+      this.sessionIdentity = { did: sessionData.did, handle: sessionData.handle };
 
       // Update last used timestamp
       await saveCurrentSessionMetadata({
@@ -122,14 +142,14 @@ export class TangledApiClient {
    * Check if user is currently authenticated
    */
   isAuthenticated(): boolean {
-    return !!this.agent.session;
+    return !!this.sessionIdentity || !!('session' in this.agent && this.agent.session);
   }
 
   /**
    * Get the underlying AtpAgent instance
    * Use this for direct API calls
    */
-  getAgent(): AtpAgent {
+  getAgent(): AtpAgent | Agent {
     return this.agent;
   }
 
@@ -137,7 +157,10 @@ export class TangledApiClient {
    * Get current session data
    */
   getSession(): AtpSessionData | undefined {
-    return this.agent.session;
+    if (this.sessionIdentity) {
+      return this.sessionIdentity as AtpSessionData;
+    }
+    return 'session' in this.agent ? this.agent.session : undefined;
   }
 }
 

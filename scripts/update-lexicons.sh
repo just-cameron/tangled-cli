@@ -106,4 +106,4 @@ download_lexicon "string/string.json"
 
 echo ""
 echo "✓ Lexicons downloaded successfully"
-echo "  Run 'npm run codegen' to regenerate TypeScript types"
+echo "  Run 'bun run codegen' to regenerate TypeScript types"

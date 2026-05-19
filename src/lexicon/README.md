@@ -17,7 +17,7 @@ The lexicon definitions are vendored in `/lexicons/` directory from:
 To regenerate this code after updating lexicons:
 
 ```bash
-npm run codegen
+bun run codegen
 ```
 
 This command:
@@ -119,19 +119,19 @@ When Tangled.org updates their lexicon schemas:
 
 1. **Fetch latest lexicons**:
    ```bash
-   npm run update-lexicons
+   bun run update-lexicons
    ```
 
 2. **Regenerate TypeScript code**:
    ```bash
-   npm run codegen
+   bun run codegen
    ```
 
 3. **Review changes**:
    - Check `git diff` to see what changed
    - Update any custom interfaces if lexicon schemas changed
-   - Run tests: `npm test`
-   - Verify TypeScript compiles: `npm run typecheck`
+   - Run tests: `bun run test`
+   - Verify TypeScript compiles: `bun run typecheck`
 
 4. **Commit both lexicon and generated code changes**:
    ```bash
@@ -158,8 +158,8 @@ If the build fails after regenerating lexicons:
 If you see module resolution errors:
 
 1. Ensure imports use `.js` extensions
-2. Run `npm run codegen` to regenerate and fix imports
-3. Check that `multiformats` is installed: `npm ls multiformats`
+2. Run `bun run codegen` to regenerate and fix imports
+3. Check that `multiformats` is installed: `bun pm ls multiformats`
 
 ## Reference
 

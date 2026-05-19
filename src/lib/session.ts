@@ -2,9 +2,12 @@ import { mkdir, readFile, unlink, writeFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AtpSessionData } from '@atproto/api';
+import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node';
 import { AsyncEntry } from '@napi-rs/keyring';
 
 const SERVICE_NAME = 'tangled-cli';
+const OAUTH_SESSION_SERVICE_NAME = 'tangled-cli-oauth-session';
+const OAUTH_STATE_SERVICE_NAME = 'tangled-cli-oauth-state';
 const SESSION_METADATA_PATH = join(homedir(), '.config', 'tangled', 'session.json');
 
 export class KeychainAccessError extends Error {
@@ -18,7 +21,21 @@ export interface SessionMetadata {
   handle: string;
   did: string;
   pds: string;
+  authType?: 'app-password' | 'oauth';
   lastUsed: string; // ISO timestamp
+}
+
+async function saveKeychainJson(service: string, accountId: string, value: unknown): Promise<void> {
+  const serialized = JSON.stringify(value);
+  const entry = new AsyncEntry(service, accountId);
+  await entry.setPassword(serialized);
+}
+
+async function loadKeychainJson<T>(service: string, accountId: string): Promise<T | null> {
+  const entry = new AsyncEntry(service, accountId);
+  const serialized = await entry.getPassword();
+  if (!serialized) return null;
+  return JSON.parse(serialized) as T;
 }
 
 /**
@@ -32,9 +49,7 @@ export async function saveSession(sessionData: AtpSessionData): Promise<void> {
       throw new Error('Session data must include DID or handle');
     }
 
-    const serialized = JSON.stringify(sessionData);
-    const entry = new AsyncEntry(SERVICE_NAME, accountId);
-    await entry.setPassword(serialized);
+    await saveKeychainJson(SERVICE_NAME, accountId, sessionData);
   } catch (error) {
     throw new Error(
       `Failed to save session to keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -48,17 +63,56 @@ export async function saveSession(sessionData: AtpSessionData): Promise<void> {
  */
 export async function loadSession(accountId: string): Promise<AtpSessionData | null> {
   try {
-    const entry = new AsyncEntry(SERVICE_NAME, accountId);
-    const serialized = await entry.getPassword();
-    if (!serialized) {
-      return null;
-    }
-    return JSON.parse(serialized) as AtpSessionData;
+    return await loadKeychainJson<AtpSessionData>(SERVICE_NAME, accountId);
   } catch (error) {
     throw new KeychainAccessError(
       `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
   }
+}
+
+export async function saveOAuthSession(sub: string, sessionData: NodeSavedSession): Promise<void> {
+  try {
+    await saveKeychainJson(OAUTH_SESSION_SERVICE_NAME, sub, sessionData);
+  } catch (error) {
+    throw new Error(
+      `Failed to save OAuth session to keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function loadOAuthSession(sub: string): Promise<NodeSavedSession | null> {
+  try {
+    return await loadKeychainJson<NodeSavedSession>(OAUTH_SESSION_SERVICE_NAME, sub);
+  } catch (error) {
+    throw new KeychainAccessError(
+      `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function deleteOAuthSession(sub: string): Promise<boolean> {
+  try {
+    const entry = new AsyncEntry(OAUTH_SESSION_SERVICE_NAME, sub);
+    return await entry.deleteCredential();
+  } catch (error) {
+    throw new Error(
+      `Failed to delete OAuth session from keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
+}
+
+export async function saveOAuthState(key: string, state: NodeSavedState): Promise<void> {
+  await saveKeychainJson(OAUTH_STATE_SERVICE_NAME, key, state);
+}
+
+export async function loadOAuthState(key: string): Promise<NodeSavedState | null> {
+  return await loadKeychainJson<NodeSavedState>(OAUTH_STATE_SERVICE_NAME, key);
+}
+
+export async function deleteOAuthState(key: string): Promise<boolean> {
+  const entry = new AsyncEntry(OAUTH_STATE_SERVICE_NAME, key);
+  return await entry.deleteCredential();
 }
 
 /**

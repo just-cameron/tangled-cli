@@ -49,7 +49,7 @@ describe('Auth Commands', () => {
       mockClient.login.mockResolvedValue(mockSessionData);
 
       const auth = createAuthCommand();
-      await auth.parseAsync(['node', 'test', 'login']);
+      await auth.parseAsync(['node', 'test', 'login', '--app-password']);
 
       expect(promptsModule.promptForLogin).toHaveBeenCalled();
       expect(mockClient.login).toHaveBeenCalledWith('user.bsky.social', 'test-password');
@@ -79,7 +79,9 @@ describe('Auth Commands', () => {
       mockClient.login.mockRejectedValue(new Error('Invalid credentials'));
 
       const auth = createAuthCommand();
-      await expect(auth.parseAsync(['node', 'test', 'login'])).rejects.toThrow('process.exit(1)');
+      await expect(auth.parseAsync(['node', 'test', 'login', '--app-password'])).rejects.toThrow(
+        'process.exit(1)'
+      );
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Login failed'));
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Invalid credentials'));
@@ -146,7 +148,7 @@ describe('Auth Commands', () => {
       await auth.parseAsync(['node', 'test', 'status']);
 
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Not authenticated'));
-      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('tangled auth login'));
+      expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('tang auth login'));
     });
 
     it('should handle status check errors gracefully', async () => {
