@@ -62,6 +62,18 @@ export function parseTangledRemote(url: string): ParsedTangledRemote | null {
   // Remove .git extension if present
   path = path.replace(/\.git$/, '');
 
+  // Tangled's hosted knot accepts a bare repository DID as a Git remote,
+  // e.g. git@tangled.org:did:plc:... . This does not encode the human
+  // owner/repo slug, but it is still a valid Tangled repository remote.
+  if (isValidTangledDid(path)) {
+    return {
+      owner: path,
+      ownerType: 'did',
+      name: path,
+      protocol,
+    };
+  }
+
   // Split path into owner and repo name
   const parts = path.split('/');
   if (parts.length < 2) {

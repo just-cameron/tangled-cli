@@ -16,8 +16,10 @@ export function createContextCommand(): Command {
         console.log('✗ Not in a Tangled repository');
         console.log('\nTo use this repository with Tangled, add a tangled.org remote:');
         console.log('  git remote add origin git@tangled.org:<did>/<repo>.git');
+        console.log('  # or, for repo-DID remotes: git remote add origin git@tangled.org:<repo-did>');
         console.log('\nOr clone from tangled.org:');
         console.log('  git clone git@tangled.org:<did>/<repo>.git');
+        console.log('  # or: git clone git@tangled.org:<repo-did>');
         process.exit(1);
       }
 

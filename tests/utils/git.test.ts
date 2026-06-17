@@ -56,6 +56,16 @@ describe('Git Utilities', () => {
           protocol: 'ssh',
         });
       });
+
+      it('should parse bare SSH repo-DID remotes', () => {
+        const result = parseTangledRemote('git@tangled.org:did:plc:ll5woixehdm2aq4tqr7pkgcr');
+        expect(result).toEqual({
+          owner: 'did:plc:ll5woixehdm2aq4tqr7pkgcr',
+          ownerType: 'did',
+          name: 'did:plc:ll5woixehdm2aq4tqr7pkgcr',
+          protocol: 'ssh',
+        });
+      });
     });
 
     describe('SSH URLs with handles', () => {
@@ -109,6 +119,16 @@ describe('Git Utilities', () => {
           protocol: 'https',
         });
       });
+
+      it('should parse bare HTTPS repo-DID remotes', () => {
+        const result = parseTangledRemote('https://tangled.org/did:plc:ll5woixehdm2aq4tqr7pkgcr');
+        expect(result).toEqual({
+          owner: 'did:plc:ll5woixehdm2aq4tqr7pkgcr',
+          ownerType: 'did',
+          name: 'did:plc:ll5woixehdm2aq4tqr7pkgcr',
+          protocol: 'https',
+        });
+      });
     });
 
     describe('edge cases', () => {
@@ -134,8 +154,8 @@ describe('Git Utilities', () => {
         expect(result).toBeNull();
       });
 
-      it('should return null for missing repo name', () => {
-        const result = parseTangledRemote('git@tangled.org:did:plc:abc123');
+      it('should return null for missing repo name when path is not a DID', () => {
+        const result = parseTangledRemote('git@tangled.org:not-a-valid-owner');
         expect(result).toBeNull();
       });
 
