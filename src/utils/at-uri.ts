@@ -1,7 +1,5 @@
 import type { TangledApiClient } from '../lib/api-client.js';
 
-const REPO_AT_URI_PATTERN = /at:\/\/did:plc:[a-z0-9]+\/sh\.tangled\.repo\/[a-zA-Z0-9._~-]+/g;
-
 /**
  * Parse an AT-URI into its components
  * @param uri - AT-URI string (e.g., "at://did:plc:abc/collection/rkey")
@@ -62,75 +60,48 @@ export async function resolveHandleToDid(
 }
 
 /**
- * Resolve a Tangled stable repository DID permalink to the canonical
- * sh.tangled.repo AT-URI used by issues, stars, and backlinks.
+ * Resolve the repository DID used to populate repo-scoped record fields
+ * (e.g. `sh.tangled.repo.issue#repo`, `sh.tangled.repo.pull#target.repo`).
+ * Per the current lexicons, these fields hold a bare DID — never an AT-URI.
  *
- * Stable clone URLs look like `git@tangled.org:did:plc:...`; that DID is a
- * repository permalink, not the owner DID + repo record key pair. The Tangled
- * HTML page already exposes the canonical repo AT-URI for social records, so
- * use it as a compatibility fallback until the CLI has a first-class AppView
- * resolver endpoint.
- */
-export async function resolveStableRepoDidToAtUri(repoDid: string): Promise<string> {
-  const response = await fetch(`https://tangled.org/${repoDid}`, {
-    headers: { accept: 'text/html' },
-  });
-
-  if (!response.ok) {
-    throw new Error(`Tangled permalink lookup failed: ${response.status} ${response.statusText}`);
-  }
-
-  const html = await response.text();
-  const matches = Array.from(new Set(html.match(REPO_AT_URI_PATTERN) ?? []));
-
-  if (matches.length === 0) {
-    throw new Error(`No repository AT-URI found for stable DID ${repoDid}`);
-  }
-
-  return matches[0];
-}
-
-/**
- * Build a repository AT-URI from owner and repository name
+ * Two cases:
+ * - Stable DID-only remotes (`git@tangled.org:did:plc:...`) set owner and
+ *   name to the same DID in git.ts; that DID already *is* the repo's stable
+ *   identity, so it is returned directly with no network call.
+ * - Owner/name remotes resolve the owner (handle or DID) to a DID, list
+ *   their `sh.tangled.repo` records, and find the one matching `repoName`.
+ *   If that record carries its own dedicated `repoDid` ("DID of the repo
+ *   itself, if assigned" per the lexicon), that is returned; otherwise the
+ *   owner's account DID is the best available identifier.
+ *
  * @param ownerDidOrHandle - DID (e.g., "did:plc:abc") or handle (e.g., "mark.bsky.social")
  * @param repoName - Repository name
  * @param client - Authenticated API client
- * @returns AT-URI string (e.g., "at://did:plc:abc/sh.tangled.repo/3mef23waqwq22")
- * @throws Error if repository not found
+ * @returns Bare DID string (e.g., "did:plc:abc123")
+ * @throws Error if the repository cannot be found
  */
-export async function buildRepoAtUri(
+export async function resolveRepoDid(
   ownerDidOrHandle: string,
   repoName: string,
   client: TangledApiClient
 ): Promise<string> {
-  // Resolve owner to DID
   const isDid = ownerDidOrHandle.startsWith('did:');
 
-  // Stable DID-only remotes set owner and name to the same DID in git.ts.
-  // Resolve the permalink directly instead of treating the repo DID as an
-  // owner account and trying to list sh.tangled.repo records under it.
+  // Stable DID-only remotes: the DID in the remote URL is already the
+  // repo's own stable identity DID.
   if (isDid && ownerDidOrHandle === repoName) {
-    try {
-      return await resolveStableRepoDidToAtUri(ownerDidOrHandle);
-    } catch (error) {
-      if (error instanceof Error) {
-        throw new Error(`Failed to resolve repository AT-URI: ${error.message}`);
-      }
-      throw new Error('Failed to resolve repository AT-URI: Unknown error');
-    }
+    return ownerDidOrHandle;
   }
 
   const did = isDid ? ownerDidOrHandle : await resolveHandleToDid(ownerDidOrHandle, client);
 
   try {
-    // Query for sh.tangled.repo records
     const response = await client.getAgent().com.atproto.repo.listRecords({
       repo: did,
       collection: 'sh.tangled.repo',
       limit: 100, // Reasonable limit for most users
     });
 
-    // Find the record matching the repo name
     const repoRecord = response.data.records.find((record) => {
       const recordData = record.value as { name?: string };
       return recordData.name === repoName;
@@ -140,12 +111,12 @@ export async function buildRepoAtUri(
       throw new Error(`Repository '${repoName}' not found for ${ownerDidOrHandle}`);
     }
 
-    // Return the record's URI (which includes the correct rkey)
-    return repoRecord.uri;
+    const recordData = repoRecord.value as { repoDid?: string };
+    return recordData.repoDid ?? did;
   } catch (error) {
     if (error instanceof Error) {
-      throw new Error(`Failed to resolve repository AT-URI: ${error.message}`);
+      throw new Error(`Failed to resolve repository DID: ${error.message}`);
     }
-    throw new Error('Failed to resolve repository AT-URI: Unknown error');
+    throw new Error('Failed to resolve repository DID: Unknown error');
   }
 }

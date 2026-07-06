@@ -16,7 +16,7 @@ const is$typed = _is$typed,
 const id = 'sh.tangled.repo.blob'
 
 export type QueryParams = {
-  /** Repository identifier in format 'did:plc:.../repoName' */
+  /** DID of the repository */
   repo: string
   /** Git reference (branch, tag, or commit SHA) */
   ref: string
@@ -44,6 +44,7 @@ export interface OutputSchema {
   mimeType?: string
   submodule?: Submodule
   lastCommit?: LastCommit
+  fileTooLarge?: boolean
 }
 
 export interface CallOptions {

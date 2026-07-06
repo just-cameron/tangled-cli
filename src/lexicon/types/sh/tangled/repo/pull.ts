@@ -16,17 +16,15 @@ const id = 'sh.tangled.repo.pull'
 
 export interface Main {
   $type: 'sh.tangled.repo.pull'
-  target: Target
   title: string
   body?: string
-  /** (deprecated) use patchBlob instead */
-  patch?: string
-  /** patch content */
-  patchBlob: BlobRef
+  rounds: Round[]
   source?: Source
+  target: Target
   createdAt: string
   mentions?: string[]
   references?: string[]
+  dependentOn?: string
   [k: string]: unknown
 }
 
@@ -65,7 +63,6 @@ export function validateTarget<V>(v: V) {
 export interface Source {
   $type?: 'sh.tangled.repo.pull#source'
   branch: string
-  sha: string
   repo?: string
 }
 
@@ -77,4 +74,21 @@ export function isSource<V>(v: V) {
 
 export function validateSource<V>(v: V) {
   return validate<Source & V>(v, id, hashSource)
+}
+
+/** revisions of this pull request, newer rounds are appended to this array. appviews may reject records do not treat this field as append-only. the blob format is gzipped text-based git-format-patches. */
+export interface Round {
+  $type?: 'sh.tangled.repo.pull#round'
+  createdAt: string
+  patchBlob: BlobRef
+}
+
+const hashRound = 'round'
+
+export function isRound<V>(v: V) {
+  return is$typed(v, id, hashRound)
+}
+
+export function validateRound<V>(v: V) {
+  return validate<Round & V>(v, id, hashRound)
 }

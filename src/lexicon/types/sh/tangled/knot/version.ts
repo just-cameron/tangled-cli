@@ -20,6 +20,8 @@ export type InputSchema = undefined
 
 export interface OutputSchema {
   version: string
+  /** Protocol capability tokens this knot implements, such as knot-acl. Knots that omit this field are treated as legacy. */
+  capabilities?: string[]
 }
 
 export interface CallOptions {

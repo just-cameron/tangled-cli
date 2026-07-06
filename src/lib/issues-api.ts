@@ -32,7 +32,7 @@ export interface IssueWithMetadata extends IssueRecord {
  */
 export interface CreateIssueParams {
   client: TangledApiClient;
-  repoAtUri: string;
+  repoDid: string;
   title: string;
   body?: string;
 }
@@ -42,8 +42,8 @@ export interface CreateIssueParams {
  */
 export interface ListIssuesParams {
   client: TangledApiClient;
-  repoAtUri: string;
-  /** Optional bare owner/repo DID aliases that older issues may store in `.repo` */
+  repoDid: string;
+  /** Optional aliases (AT-URIs or other DIDs) that older/buggy issues may store in `.repo` */
   repoAliases?: string[];
   limit?: number;
   cursor?: string;
@@ -117,7 +117,7 @@ function parseIssueUri(issueUri: string): {
  * Create a new issue
  */
 export async function createIssue(params: CreateIssueParams): Promise<IssueWithMetadata> {
-  const { client, repoAtUri, title, body } = params;
+  const { client, repoDid, title, body } = params;
 
   // Validate authentication
   const session = await requireAuth(client);
@@ -125,7 +125,7 @@ export async function createIssue(params: CreateIssueParams): Promise<IssueWithM
   // Build issue record
   const record: IssueRecord = {
     $type: 'sh.tangled.repo.issue',
-    repo: repoAtUri,
+    repo: repoDid, // bare repo DID (lexicon format "did"), not an AT-URI
     title,
     body,
     createdAt: new Date().toISOString(),
@@ -160,26 +160,20 @@ export async function listIssues(params: ListIssuesParams): Promise<{
   issues: IssueWithMetadata[];
   cursor?: string;
 }> {
-  const { client, repoAtUri, repoAliases = [], limit = 50, cursor } = params;
+  const { client, repoDid, repoAliases = [], limit = 50, cursor } = params;
 
   // Validate authentication
   const session = await requireAuth(client);
 
   const matchesRepo = (repoField: string | undefined): boolean => {
     if (!repoField) return false;
-    if (repoField === repoAtUri) return true;
+    if (repoField === repoDid) return true;
     return repoAliases.some((alias) => alias.length > 0 && repoField === alias);
   };
 
   try {
     // Query constellation for all issues that reference this repo across all PDSs
-    const backlinks = await getBacklinks(
-      repoAtUri,
-      'sh.tangled.repo.issue',
-      '.repo',
-      limit,
-      cursor
-    );
+    const backlinks = await getBacklinks(repoDid, 'sh.tangled.repo.issue', '.repo', limit, cursor);
 
     // Fetch each issue record individually (constellation only gives us the AT-URI components)
     const issuePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
@@ -198,10 +192,10 @@ export async function listIssues(params: ListIssuesParams): Promise<{
 
     let issues = await Promise.all(issuePromises);
 
-    // Always merge a local PDS scan: some Tangled clients store a bare repo DID
-    // in `.repo` instead of the sh.tangled.repo AT-URI, which constellation
-    // cannot backlink. Without this merge, a single correctly-linked issue
-    // hides every bare-DID sibling from `tang issue list`.
+    // Always merge a local PDS scan: some clients historically stored an AT-URI
+    // (or other alias) in `.repo` instead of the bare repo DID. Constellation
+    // only backlinks the exact string; without this merge those siblings vanish
+    // from `tang issue list` whenever any correctly-linked issue exists.
     const local = await client.getAgent().com.atproto.repo.listRecords({
       repo: session.did,
       collection: 'sh.tangled.repo.issue',
@@ -231,6 +225,7 @@ export async function listIssues(params: ListIssuesParams): Promise<{
     throw new Error('Failed to list issues: Unknown error');
   }
 }
+
 
 /**
  * Get a specific issue
@@ -417,12 +412,12 @@ export async function resolveSequentialNumber(
   displayId: string,
   issueUri: string,
   client: TangledApiClient,
-  repoAtUri: string
+  repoDid: string
 ): Promise<number | undefined> {
   const match = displayId.match(/^#(\d+)$/);
   if (match) return Number.parseInt(match[1], 10);
 
-  const { issues } = await listIssues({ client, repoAtUri, limit: 100 });
+  const { issues } = await listIssues({ client, repoDid, limit: 100 });
   const sorted = issues.sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
@@ -454,12 +449,12 @@ export async function getCompleteIssueData(
   client: TangledApiClient,
   issueUri: string,
   displayId: string,
-  repoAtUri: string,
+  repoDid: string,
   stateOverride?: 'open' | 'closed'
 ): Promise<IssueData> {
   const [issue, number] = await Promise.all([
     getIssue({ client, issueUri }),
-    resolveSequentialNumber(displayId, issueUri, client, repoAtUri),
+    resolveSequentialNumber(displayId, issueUri, client, repoDid),
   ]);
   const state = stateOverride ?? (await getIssueState({ client, issueUri }));
   return {

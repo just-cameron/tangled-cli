@@ -17,6 +17,7 @@ const id = 'sh.tangled.repo.pull.status'
 export interface Main {
   $type: 'sh.tangled.repo.pull.status'
   pull: string
+  createdAt: string
   /** status of the pull request */
   status:
     | 'sh.tangled.repo.pull.status.open'

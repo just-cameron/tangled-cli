@@ -3,6 +3,7 @@ import type { TangledApiClient } from '../../src/lib/api-client.js';
 import { getBacklinks } from '../../src/lib/constellation.js';
 import {
   createPull,
+  deletePull,
   getPull,
   getPullState,
   listPulls,
@@ -34,7 +35,7 @@ const createMockClient = (authenticated = true): TangledApiClient => {
   } as unknown as TangledApiClient;
 };
 
-const REPO_AT_URI = 'at://did:plc:owner/sh.tangled.repo/my-repo';
+const REPO_DID = 'did:plc:owner';
 const PULL_AT_URI = 'at://did:plc:test123/sh.tangled.repo.pull/abc123';
 
 describe('createPull', () => {
@@ -73,12 +74,11 @@ describe('createPull', () => {
     const patchBuffer = Buffer.from('fake gzip content');
     const result = await createPull({
       client: mockClient,
-      repoAtUri: REPO_AT_URI,
+      repoDid: REPO_DID,
       title: 'Add new feature',
       body: 'Description',
       targetBranch: 'main',
       sourceBranch: 'feature/new-thing',
-      sourceSha: 'abc123sha',
       patchBuffer,
     });
 
@@ -88,11 +88,11 @@ describe('createPull', () => {
       collection: 'sh.tangled.repo.pull',
       record: expect.objectContaining({
         $type: 'sh.tangled.repo.pull',
-        target: { repo: REPO_AT_URI, branch: 'main' },
+        target: { repo: REPO_DID, branch: 'main', repoDid: REPO_DID },
         title: 'Add new feature',
         body: 'Description',
-        patchBlob: mockBlob,
-        source: { branch: 'feature/new-thing', sha: 'abc123sha', repo: REPO_AT_URI },
+        rounds: [{ createdAt: expect.any(String), patchBlob: mockBlob }],
+        source: { branch: 'feature/new-thing' },
         createdAt: expect.any(String),
       }),
     });
@@ -123,11 +123,10 @@ describe('createPull', () => {
 
     const result = await createPull({
       client: mockClient,
-      repoAtUri: REPO_AT_URI,
+      repoDid: REPO_DID,
       title: 'Fix bug',
       targetBranch: 'main',
       sourceBranch: 'fix/bug',
-      sourceSha: 'deadbeef',
       patchBuffer: Buffer.from('patch'),
     });
 
@@ -140,11 +139,10 @@ describe('createPull', () => {
     await expect(
       createPull({
         client: unauthClient,
-        repoAtUri: REPO_AT_URI,
+        repoDid: REPO_DID,
         title: 'Test',
         targetBranch: 'main',
         sourceBranch: 'feature',
-        sourceSha: 'abc',
         patchBuffer: Buffer.from('patch'),
       })
     ).rejects.toThrow();
@@ -164,15 +162,15 @@ describe('listPulls', () => {
   });
 
   it('should return empty list when no pulls exist', async () => {
-    const result = await listPulls({ client: mockClient, repoAtUri: REPO_AT_URI });
+    const result = await listPulls({ client: mockClient, repoDid: REPO_DID });
     expect(result.pulls).toHaveLength(0);
     expect(result.cursor).toBeUndefined();
   });
 
   it('should query constellation with correct parameters', async () => {
-    await listPulls({ client: mockClient, repoAtUri: REPO_AT_URI, limit: 25 });
+    await listPulls({ client: mockClient, repoDid: REPO_DID, limit: 25 });
     expect(getBacklinks).toHaveBeenCalledWith(
-      REPO_AT_URI,
+      REPO_DID,
       'sh.tangled.repo.pull',
       '.target.repo',
       25,
@@ -189,10 +187,10 @@ describe('listPulls', () => {
 
     const mockRecord = {
       $type: 'sh.tangled.repo.pull',
-      target: { repo: REPO_AT_URI, branch: 'main' },
+      target: { repo: REPO_DID, branch: 'main' },
       title: 'Test PR',
-      patchBlob: {},
-      source: { branch: 'feature', sha: 'abc', repo: REPO_AT_URI },
+      rounds: [{ createdAt: '2024-01-01T00:00:00.000Z', patchBlob: {} }],
+      source: { branch: 'feature', sha: 'abc', repo: REPO_DID },
       createdAt: '2024-01-01T00:00:00.000Z',
     };
 
@@ -204,7 +202,7 @@ describe('listPulls', () => {
       com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
-    const result = await listPulls({ client: mockClient, repoAtUri: REPO_AT_URI });
+    const result = await listPulls({ client: mockClient, repoDid: REPO_DID });
     expect(result.pulls).toHaveLength(1);
     expect(result.pulls[0].title).toBe('Test PR');
     expect(result.pulls[0].uri).toBe(PULL_AT_URI);
@@ -222,9 +220,9 @@ describe('getPull', () => {
   it('should fetch pull record by AT-URI', async () => {
     const mockRecord = {
       $type: 'sh.tangled.repo.pull',
-      target: { repo: REPO_AT_URI, branch: 'main' },
+      target: { repo: REPO_DID, branch: 'main' },
       title: 'Test PR',
-      patchBlob: {},
+      rounds: [{ createdAt: '2024-01-01T00:00:00.000Z', patchBlob: {} }],
       createdAt: '2024-01-01T00:00:00.000Z',
     };
 
@@ -249,6 +247,42 @@ describe('getPull', () => {
 
   it('should throw for invalid AT-URI', async () => {
     await expect(getPull({ client: mockClient, pullUri: 'not-a-uri' })).rejects.toThrow(
+      'Invalid pull request AT-URI'
+    );
+  });
+});
+
+describe('deletePull', () => {
+  let mockClient: TangledApiClient;
+
+  beforeEach(() => {
+    mockClient = createMockClient(true);
+  });
+
+  it('should delete the record when the caller is the author', async () => {
+    const mockDeleteRecord = vi.fn().mockResolvedValue({});
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: { atproto: { repo: { deleteRecord: mockDeleteRecord } } },
+    } as never);
+
+    await deletePull({ client: mockClient, pullUri: PULL_AT_URI });
+
+    expect(mockDeleteRecord).toHaveBeenCalledWith({
+      repo: 'did:plc:test123',
+      collection: 'sh.tangled.repo.pull',
+      rkey: 'abc123',
+    });
+  });
+
+  it('should throw when the caller is not the author', async () => {
+    const otherAuthorUri = 'at://did:plc:someoneelse/sh.tangled.repo.pull/abc123';
+    await expect(deletePull({ client: mockClient, pullUri: otherAuthorUri })).rejects.toThrow(
+      'Cannot delete pull request: you are not the author'
+    );
+  });
+
+  it('should throw for invalid AT-URI', async () => {
+    await expect(deletePull({ client: mockClient, pullUri: 'not-a-uri' })).rejects.toThrow(
       'Invalid pull request AT-URI'
     );
   });
@@ -348,7 +382,7 @@ describe('resolveSequentialPullNumber', () => {
   });
 
   it('should use fast path for #N displayId', async () => {
-    const num = await resolveSequentialPullNumber('#3', PULL_AT_URI, mockClient, REPO_AT_URI);
+    const num = await resolveSequentialPullNumber('#3', PULL_AT_URI, mockClient, REPO_DID);
     expect(num).toBe(3);
     expect(getBacklinks).not.toHaveBeenCalled();
   });
@@ -372,9 +406,9 @@ describe('resolveSequentialPullNumber', () => {
         data: {
           value: {
             $type: 'sh.tangled.repo.pull',
-            target: { repo: REPO_AT_URI, branch: 'main' },
+            target: { repo: REPO_DID, branch: 'main' },
             title: 'First',
-            patchBlob: {},
+            rounds: [{ createdAt: '2024-01-01T00:00:00.000Z', patchBlob: {} }],
             createdAt: '2024-01-01T00:00:00.000Z',
           },
           uri: pullUri1,
@@ -385,9 +419,9 @@ describe('resolveSequentialPullNumber', () => {
         data: {
           value: {
             $type: 'sh.tangled.repo.pull',
-            target: { repo: REPO_AT_URI, branch: 'main' },
+            target: { repo: REPO_DID, branch: 'main' },
             title: 'Second',
-            patchBlob: {},
+            rounds: [{ createdAt: '2024-01-01T00:00:00.000Z', patchBlob: {} }],
             createdAt: '2024-01-02T00:00:00.000Z',
           },
           uri: pullUri2,
@@ -399,7 +433,7 @@ describe('resolveSequentialPullNumber', () => {
       com: { atproto: { repo: { getRecord: mockGetRecord } } },
     } as never);
 
-    const num = await resolveSequentialPullNumber('rkey2', pullUri2, mockClient, REPO_AT_URI);
+    const num = await resolveSequentialPullNumber('rkey2', pullUri2, mockClient, REPO_DID);
     expect(num).toBe(2);
   });
 });

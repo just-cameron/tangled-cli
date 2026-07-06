@@ -1,11 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
-import {
-  buildRepoAtUri,
-  parseAtUri,
-  resolveHandleToDid,
-  resolveStableRepoDidToAtUri,
-} from '../../src/utils/at-uri.js';
+import { parseAtUri, resolveHandleToDid, resolveRepoDid } from '../../src/utils/at-uri.js';
 
 // Mock API client
 const createMockClient = (): TangledApiClient => {
@@ -79,37 +74,6 @@ describe('resolveHandleToDid', () => {
 
   beforeEach(() => {
     mockClient = createMockClient();
-    vi.unstubAllGlobals();
-  });
-
-  it('should resolve stable repo DID permalinks from Tangled page markup', async () => {
-    const html = `
-      <div data-star-subject-at="at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned"></div>
-      <span>git@tangled.org:did:plc:t53fxjacrmulx3e5d3sbdfui</span>
-    `;
-    const fetchMock = vi.fn().mockResolvedValue(new Response(html, { status: 200 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    const result = await resolveStableRepoDidToAtUri('did:plc:t53fxjacrmulx3e5d3sbdfui');
-
-    expect(result).toBe('at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned');
-    expect(fetchMock).toHaveBeenCalledWith('https://tangled.org/did:plc:t53fxjacrmulx3e5d3sbdfui', {
-      headers: { accept: 'text/html' },
-    });
-  });
-
-  it('should build repo AT-URI directly for stable DID-only remotes', async () => {
-    const html = `data-star-subject-at="at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned"`;
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(html, { status: 200 })));
-
-    const result = await buildRepoAtUri(
-      'did:plc:t53fxjacrmulx3e5d3sbdfui',
-      'did:plc:t53fxjacrmulx3e5d3sbdfui',
-      mockClient
-    );
-
-    expect(result).toBe('at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned');
-    expect(mockClient.getAgent).not.toHaveBeenCalled();
   });
 
   it('should resolve handle to DID', async () => {
@@ -192,14 +156,25 @@ describe('resolveHandleToDid', () => {
   });
 });
 
-describe('buildRepoAtUri', () => {
+describe('resolveRepoDid', () => {
   let mockClient: TangledApiClient;
 
   beforeEach(() => {
     mockClient = createMockClient();
   });
 
-  it('should query PDS and use repo record rkey', async () => {
+  it('should return the DID directly for stable DID-only remotes, with no network call', async () => {
+    const result = await resolveRepoDid(
+      'did:plc:t53fxjacrmulx3e5d3sbdfui',
+      'did:plc:t53fxjacrmulx3e5d3sbdfui',
+      mockClient
+    );
+
+    expect(result).toBe('did:plc:t53fxjacrmulx3e5d3sbdfui');
+    expect(mockClient.getAgent).not.toHaveBeenCalled();
+  });
+
+  it('should query the PDS and return the owner DID when no repoDid is assigned', async () => {
     const mockListRecords = vi.fn().mockResolvedValue({
       data: {
         records: [
@@ -221,9 +196,9 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    const result = await buildRepoAtUri('did:plc:abc123', 'my-repo', mockClient);
+    const result = await resolveRepoDid('did:plc:abc123', 'my-repo', mockClient);
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/3mef23waqwq22');
+    expect(result).toBe('did:plc:abc123');
     expect(mockListRecords).toHaveBeenCalledWith({
       repo: 'did:plc:abc123',
       collection: 'sh.tangled.repo',
@@ -231,7 +206,34 @@ describe('buildRepoAtUri', () => {
     });
   });
 
-  it('should resolve handle then query for repo record', async () => {
+  it("should prefer the repo record's own repoDid when one is assigned", async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/3mef23waqwq22',
+            value: { name: 'my-repo', repoDid: 'did:plc:stablerepoxyz' },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
+    const result = await resolveRepoDid('did:plc:abc123', 'my-repo', mockClient);
+
+    expect(result).toBe('did:plc:stablerepoxyz');
+  });
+
+  it('should resolve handle then query for the repo record', async () => {
     const mockResolve = vi.fn().mockResolvedValue({
       data: { did: 'did:plc:abc123' },
     });
@@ -260,9 +262,9 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    const result = await buildRepoAtUri('mark.bsky.social', 'my-repo', mockClient);
+    const result = await resolveRepoDid('mark.bsky.social', 'my-repo', mockClient);
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    expect(result).toBe('did:plc:abc123');
     expect(mockResolve).toHaveBeenCalledWith({ handle: 'mark.bsky.social' });
     expect(mockListRecords).toHaveBeenCalledWith({
       repo: 'did:plc:abc123',
@@ -281,7 +283,7 @@ describe('buildRepoAtUri', () => {
           },
           {
             uri: 'at://did:plc:abc123/sh.tangled.repo/bbb222',
-            value: { name: 'target-repo' },
+            value: { name: 'target-repo', repoDid: 'did:plc:targetrepodid' },
           },
           {
             uri: 'at://did:plc:abc123/sh.tangled.repo/ccc333',
@@ -301,9 +303,9 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    const result = await buildRepoAtUri('did:plc:abc123', 'target-repo', mockClient);
+    const result = await resolveRepoDid('did:plc:abc123', 'target-repo', mockClient);
 
-    expect(result).toBe('at://did:plc:abc123/sh.tangled.repo/bbb222');
+    expect(result).toBe('did:plc:targetrepodid');
   });
 
   it('should throw error when repository not found', async () => {
@@ -328,7 +330,7 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    await expect(buildRepoAtUri('did:plc:abc123', 'nonexistent-repo', mockClient)).rejects.toThrow(
+    await expect(resolveRepoDid('did:plc:abc123', 'nonexistent-repo', mockClient)).rejects.toThrow(
       "Repository 'nonexistent-repo' not found for did:plc:abc123"
     );
   });
@@ -346,7 +348,7 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    await expect(buildRepoAtUri('mark.bsky.social', 'my-repo', mockClient)).rejects.toThrow(
+    await expect(resolveRepoDid('mark.bsky.social', 'my-repo', mockClient)).rejects.toThrow(
       "Failed to resolve handle 'mark.bsky.social': Resolution failed"
     );
   });
@@ -364,8 +366,8 @@ describe('buildRepoAtUri', () => {
       },
     } as never);
 
-    await expect(buildRepoAtUri('did:plc:abc123', 'my-repo', mockClient)).rejects.toThrow(
-      'Failed to resolve repository AT-URI: API error'
+    await expect(resolveRepoDid('did:plc:abc123', 'my-repo', mockClient)).rejects.toThrow(
+      'Failed to resolve repository DID: API error'
     );
   });
 });

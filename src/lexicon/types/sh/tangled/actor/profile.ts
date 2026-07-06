@@ -34,10 +34,12 @@ export interface Main {
   bluesky: boolean
   /** Free-form location text. */
   location?: string
-  /** Any ATURI, it is up to appviews to validate these fields. */
+  /** Pinned repositories. Values are repo DIDs for repos that have them, or AT-URIs for legacy repos. */
   pinnedRepositories?: string[]
   /** Preferred gender pronouns. */
   pronouns?: string
+  /** A handle the user prefers to be displayed as. */
+  preferredHandle?: string
   [k: string]: unknown
 }
 

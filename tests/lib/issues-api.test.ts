@@ -67,7 +67,7 @@ describe('createIssue', () => {
 
     const result = await createIssue({
       client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
       title: 'Bug: Login fails',
       body: 'Detailed description of the bug',
     });
@@ -114,7 +114,7 @@ describe('createIssue', () => {
 
     const result = await createIssue({
       client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
       title: 'Simple issue',
     });
 
@@ -128,7 +128,7 @@ describe('createIssue', () => {
     await expect(
       createIssue({
         client: mockClient,
-        repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
         title: 'Test',
       })
     ).rejects.toThrow('Must be authenticated');
@@ -150,7 +150,7 @@ describe('createIssue', () => {
     await expect(
       createIssue({
         client: mockClient,
-        repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
         title: 'Test',
       })
     ).rejects.toThrow('Failed to create issue: API error');
@@ -208,7 +208,7 @@ describe('listIssues', () => {
 
     const result = await listIssues({
       client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
     });
 
     expect(result.issues).toHaveLength(2);
@@ -238,7 +238,7 @@ describe('listIssues', () => {
 
     const result = await listIssues({
       client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
     });
 
     expect(result.issues).toEqual([]);
@@ -249,7 +249,7 @@ describe('listIssues', () => {
 
     const result = await listIssues({
       client: mockClient,
-      repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
     });
 
     expect(result.cursor).toBe('nextpage');
@@ -261,7 +261,7 @@ describe('listIssues', () => {
     await expect(
       listIssues({
         client: mockClient,
-        repoAtUri: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
       })
     ).rejects.toThrow('Must be authenticated');
   });

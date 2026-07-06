@@ -49,7 +49,7 @@ describe('issue create command', () => {
     });
 
     // Mock AT-URI builder
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(
       'at://did:plc:abc123/sh.tangled.repo/test-repo'
     );
 
@@ -86,7 +86,7 @@ describe('issue create command', () => {
 
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
         title: 'Test Issue',
         body: 'Test body',
       });
@@ -126,7 +126,7 @@ describe('issue create command', () => {
       expect(bodyInput.readBodyInput).toHaveBeenCalledWith(undefined, '/tmp/body.txt');
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
         title: 'Test Issue',
         body: 'Body from file',
       });
@@ -154,7 +154,7 @@ describe('issue create command', () => {
 
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
         title: 'Test Issue',
         body: undefined,
       });
@@ -341,7 +341,7 @@ describe('issue list command', () => {
     });
 
     // Mock AT-URI builder
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
   });
 
   afterEach(() => {
@@ -382,7 +382,7 @@ describe('issue list command', () => {
 
       expect(issuesApi.listIssues).toHaveBeenCalledWith({
         client: mockClient,
-        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repoDid: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
         limit: 50,
       });
 
@@ -402,7 +402,7 @@ describe('issue list command', () => {
 
       expect(issuesApi.listIssues).toHaveBeenCalledWith({
         client: mockClient,
-        repoAtUri: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repoDid: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
         limit: 25,
       });
     });
@@ -604,7 +604,7 @@ describe('issue view command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
 
     vi.mocked(authHelpers.requireAuth).mockResolvedValue({
       did: 'did:plc:abc123',
@@ -830,7 +830,7 @@ describe('issue edit command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
 
     vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
     vi.mocked(authHelpers.requireAuth).mockResolvedValue({
@@ -1004,7 +1004,7 @@ describe('issue close command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
     vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
       number: 1,
       title: mockIssue.title,
@@ -1121,7 +1121,7 @@ describe('issue reopen command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
     vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
       number: 1,
       title: mockIssue.title,

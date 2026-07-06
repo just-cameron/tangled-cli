@@ -21,13 +21,23 @@ export interface Main {
   /** did of the user that pushed this ref */
   committerDid: string
   /** did of the owner of the repo */
-  repoDid: string
-  /** name of the repo */
-  repoName: string
+  ownerDid?: string
+  /** DID of the repo itself */
+  repo: string
   /** old SHA of this ref */
   oldSha: string
   /** new SHA of this ref */
   newSha: string
+  /** files changed between commits */
+  changedFiles?: string[]
+  /** push options passed on git-push */
+  pushOptions?: (
+    | 'ci-skip'
+    | 'ci-verbose'
+    | 'skip-ci'
+    | 'verbose-ci'
+    | (string & {})
+  )[]
   meta: Meta
   [k: string]: unknown
 }

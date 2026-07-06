@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createPrCommand } from '../../src/commands/pr.js';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
@@ -20,15 +21,15 @@ vi.mock('@inquirer/prompts');
 vi.mock('simple-git');
 vi.mock('node:zlib');
 
-const REPO_AT_URI = 'at://did:plc:abc123/sh.tangled.repo/test-repo';
+const REPO_DID = 'did:plc:abc123';
 const PULL_AT_URI = 'at://did:plc:abc123/sh.tangled.repo.pull/pull123';
 
 const makePull = (overrides: Partial<PullWithMetadata> = {}): PullWithMetadata => ({
   $type: 'sh.tangled.repo.pull',
-  target: { repo: REPO_AT_URI, branch: 'main' },
+  target: { repo: REPO_DID, branch: 'main', repoDid: REPO_DID },
   title: 'Test PR',
-  patchBlob: {} as never,
-  source: { branch: 'feature/test', sha: 'abc123sha', repo: REPO_AT_URI },
+  rounds: [{ createdAt: '2024-01-01T00:00:00.000Z', patchBlob: {} as never }],
+  source: { branch: 'feature/test' },
   createdAt: '2024-01-01T00:00:00.000Z',
   uri: PULL_AT_URI,
   cid: 'bafyreiabc123',
@@ -59,7 +60,7 @@ describe('pr list command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(REPO_AT_URI);
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(REPO_DID);
     vi.mocked(pullsApi.listPulls).mockResolvedValue({ pulls: [], cursor: undefined });
     vi.mocked(pullsApi.getPullState).mockResolvedValue('open');
     vi.mocked(authHelpers.ensureAuthenticated).mockResolvedValue(undefined);
@@ -148,7 +149,7 @@ describe('pr view command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(REPO_AT_URI);
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(REPO_DID);
     vi.mocked(authHelpers.ensureAuthenticated).mockResolvedValue(undefined);
 
     vi.mocked(pullsApi.listPulls).mockResolvedValue({ pulls: [makePull()], cursor: undefined });
@@ -202,7 +203,7 @@ describe('pr view command', () => {
       mockClient,
       PULL_AT_URI,
       'pull123',
-      REPO_AT_URI
+      REPO_DID
     );
   });
 
@@ -240,7 +241,7 @@ describe('pr create command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.buildRepoAtUri).mockResolvedValue(REPO_AT_URI);
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(REPO_DID);
     vi.mocked(authHelpers.ensureAuthenticated).mockResolvedValue(undefined);
     vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
 
@@ -400,5 +401,89 @@ describe('pr create command', () => {
     ]);
 
     expect(pullsApi.createPull).toHaveBeenCalled();
+  });
+});
+
+describe('pr delete command', () => {
+  let mockClient: TangledApiClient;
+  let consoleLogSpy: ReturnType<typeof vi.spyOn>;
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as never;
+    consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {}) as never;
+    vi.spyOn(process, 'exit').mockImplementation((code) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never;
+
+    mockClient = { resumeSession: vi.fn(async () => true) } as unknown as TangledApiClient;
+    vi.mocked(apiClient.createApiClient).mockReturnValue(mockClient);
+
+    vi.mocked(context.getCurrentRepoContext).mockResolvedValue({
+      owner: 'test.bsky.social',
+      ownerType: 'handle',
+      name: 'test-repo',
+      remoteName: 'origin',
+      remoteUrl: 'git@tangled.org:test.bsky.social/test-repo.git',
+      protocol: 'ssh',
+    });
+
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(REPO_DID);
+    vi.mocked(authHelpers.ensureAuthenticated).mockResolvedValue(undefined);
+    vi.mocked(pullsApi.listPulls).mockResolvedValue({ pulls: [makePull()], cursor: undefined });
+    vi.mocked(pullsApi.getCompletePullData).mockResolvedValue({
+      number: 1,
+      title: 'Test PR',
+      state: 'open',
+      author: 'did:plc:abc123',
+      createdAt: '2024-01-01T00:00:00.000Z',
+      uri: PULL_AT_URI,
+      cid: 'bafyreiabc123',
+      sourceBranch: 'feature/test',
+      targetBranch: 'main',
+    });
+    vi.mocked(pullsApi.deletePull).mockResolvedValue(undefined);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should delete after confirmation', async () => {
+    vi.mocked(confirm).mockResolvedValue(true);
+
+    const command = createPrCommand();
+    await command.parseAsync(['node', 'test', 'delete', '1']);
+
+    expect(pullsApi.deletePull).toHaveBeenCalledWith({ client: mockClient, pullUri: PULL_AT_URI });
+    expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('deleted'));
+  });
+
+  it('should abort without deleting when confirmation is declined', async () => {
+    vi.mocked(confirm).mockResolvedValue(false);
+
+    const command = createPrCommand();
+    await command.parseAsync(['node', 'test', 'delete', '1']);
+
+    expect(pullsApi.deletePull).not.toHaveBeenCalled();
+    expect(consoleLogSpy).toHaveBeenCalledWith('Aborted.');
+  });
+
+  it('should skip the prompt with --yes', async () => {
+    const command = createPrCommand();
+    await command.parseAsync(['node', 'test', 'delete', '1', '--yes']);
+
+    expect(confirm).not.toHaveBeenCalled();
+    expect(pullsApi.deletePull).toHaveBeenCalledWith({ client: mockClient, pullUri: PULL_AT_URI });
+  });
+
+  it('should exit 1 when deletion fails', async () => {
+    vi.mocked(pullsApi.deletePull).mockRejectedValue(new Error('you are not the author'));
+
+    const command = createPrCommand();
+    await expect(command.parseAsync(['node', 'test', 'delete', '1', '--yes'])).rejects.toThrow(
+      'process.exit(1)'
+    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('not the author'));
   });
 });

@@ -17,6 +17,7 @@ const id = 'sh.tangled.repo.issue.state'
 export interface Main {
   $type: 'sh.tangled.repo.issue.state'
   issue: string
+  createdAt: string
   /** state of the issue */
   state:
     | 'sh.tangled.repo.issue.state.open'

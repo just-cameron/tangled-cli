@@ -16,7 +16,7 @@ const id = 'sh.tangled.feed.star'
 
 export interface Main {
   $type: 'sh.tangled.feed.star'
-  subject: string
+  subject: $Typed<Repo> | $Typed<String>
   createdAt: string
   [k: string]: unknown
 }
@@ -35,4 +35,34 @@ export {
   type Main as Record,
   isMain as isRecord,
   validateMain as validateRecord,
+}
+
+export interface Repo {
+  $type?: 'sh.tangled.feed.star#repo'
+  did: string
+}
+
+const hashRepo = 'repo'
+
+export function isRepo<V>(v: V) {
+  return is$typed(v, id, hashRepo)
+}
+
+export function validateRepo<V>(v: V) {
+  return validate<Repo & V>(v, id, hashRepo)
+}
+
+export interface String {
+  $type?: 'sh.tangled.feed.star#string'
+  uri: string
+}
+
+const hashString = 'string'
+
+export function isString<V>(v: V) {
+  return is$typed(v, id, hashString)
+}
+
+export function validateString<V>(v: V) {
+  return validate<String & V>(v, id, hashString)
 }

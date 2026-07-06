@@ -13,7 +13,7 @@
         "properties": {
           "repo": {
             "type": "string",
-            "format": "at-uri"
+            "format": "did"
           },
           "title": {
             "type": "string"

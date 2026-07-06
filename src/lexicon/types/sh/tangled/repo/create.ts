@@ -20,10 +20,18 @@ export type QueryParams = {}
 export interface InputSchema {
   /** Rkey of the repository record */
   rkey: string
+  /** Name of the repository */
+  name: string
   /** Default branch to push to */
   defaultBranch?: string
   /** A source URL to clone from, populate this when forking or importing a repository. */
   source?: string
+  /** Optional user-provided did:web to use as the repo identity instead of minting a did:plc. */
+  repoDid?: string
+}
+
+export interface OutputSchema {
+  repoDid?: string
 }
 
 export interface CallOptions {
@@ -36,6 +44,7 @@ export interface CallOptions {
 export interface Response {
   success: boolean
   headers: HeadersMap
+  data: OutputSchema
 }
 
 export function toKnownErr(e: any) {

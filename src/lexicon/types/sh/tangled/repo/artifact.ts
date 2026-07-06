@@ -19,7 +19,8 @@ export interface Main {
   /** name of the artifact */
   name: string
   /** repo that this artifact is being uploaded to */
-  repo: string
+  repo?: string
+  repoDid?: string
   /** hash of the tag object that this artifact is attached to (only annotated tags are supported) */
   tag: Uint8Array
   /** time of creation of this artifact */

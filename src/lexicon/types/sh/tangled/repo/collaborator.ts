@@ -17,7 +17,7 @@ const id = 'sh.tangled.repo.collaborator'
 export interface Main {
   $type: 'sh.tangled.repo.collaborator'
   subject: string
-  /** repo to add this user to */
+  /** repo DID to add this user to */
   repo: string
   createdAt: string
   [k: string]: unknown

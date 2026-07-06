@@ -77,18 +77,23 @@ export const schemaDict = {
             pinnedRepositories: {
               type: 'array',
               description:
-                'Any ATURI, it is up to appviews to validate these fields.',
+                'Pinned repositories. Values are repo DIDs for repos that have them, or AT-URIs for legacy repos.',
               minLength: 0,
               maxLength: 6,
               items: {
                 type: 'string',
-                format: 'at-uri',
               },
             },
             pronouns: {
               type: 'string',
               description: 'Preferred gender pronouns.',
               maxLength: 40,
+            },
+            preferredHandle: {
+              type: 'string',
+              description: 'A handle the user prefers to be displayed as.',
+              format: 'handle',
+              maxLength: 253,
             },
           },
         },
@@ -139,13 +144,37 @@ export const schemaDict = {
           required: ['subject', 'createdAt'],
           properties: {
             subject: {
-              type: 'string',
-              format: 'at-uri',
+              type: 'union',
+              refs: [
+                'lex:sh.tangled.feed.star#repo',
+                'lex:sh.tangled.feed.star#string',
+              ],
+              closed: true,
             },
             createdAt: {
               type: 'string',
               format: 'datetime',
             },
+          },
+        },
+      },
+      repo: {
+        type: 'object',
+        required: ['did'],
+        properties: {
+          did: {
+            type: 'string',
+            format: 'did',
+          },
+        },
+      },
+      string: {
+        type: 'object',
+        required: ['uri'],
+        properties: {
+          uri: {
+            type: 'string',
+            format: 'at-uri',
           },
         },
       },
@@ -157,19 +186,12 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'record',
-        description: 'An update to a git repository, emitted by knots.',
+        description:
+          'An event record representing git-push operation to git repository, emitted by knots.',
         key: 'tid',
         record: {
           type: 'object',
-          required: [
-            'ref',
-            'committerDid',
-            'repoDid',
-            'repoName',
-            'oldSha',
-            'newSha',
-            'meta',
-          ],
+          required: ['ref', 'committerDid', 'repo', 'oldSha', 'newSha', 'meta'],
           properties: {
             ref: {
               type: 'string',
@@ -182,14 +204,15 @@ export const schemaDict = {
               description: 'did of the user that pushed this ref',
               format: 'did',
             },
-            repoDid: {
+            ownerDid: {
               type: 'string',
               description: 'did of the owner of the repo',
               format: 'did',
             },
-            repoName: {
+            repo: {
               type: 'string',
-              description: 'name of the repo',
+              description: 'DID of the repo itself',
+              format: 'did',
             },
             oldSha: {
               type: 'string',
@@ -202,6 +225,23 @@ export const schemaDict = {
               description: 'new SHA of this ref',
               minLength: 40,
               maxLength: 40,
+            },
+            changedFiles: {
+              type: 'array',
+              description: 'files changed between commits',
+              items: {
+                type: 'string',
+              },
+            },
+            pushOptions: {
+              type: 'array',
+              description: 'push options passed on git-push',
+              maxLength: 50,
+              items: {
+                type: 'string',
+                maxLength: 1024,
+                knownValues: ['ci-skip', 'ci-verbose', 'skip-ci', 'verbose-ci'],
+              },
             },
             meta: {
               type: 'ref',
@@ -379,7 +419,7 @@ export const schemaDict = {
           properties: {
             repo: {
               type: 'string',
-              format: 'at-uri',
+              format: 'did',
             },
             title: {
               type: 'string',
@@ -433,11 +473,15 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
-          required: ['issue', 'state'],
+          required: ['issue', 'state', 'createdAt'],
           properties: {
             issue: {
               type: 'string',
               format: 'at-uri',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
             },
             state: {
               type: 'string',
@@ -594,6 +638,14 @@ export const schemaDict = {
               version: {
                 type: 'string',
               },
+              capabilities: {
+                type: 'array',
+                items: {
+                  type: 'string',
+                },
+                description:
+                  'Protocol capability tokens this knot implements, such as knot-acl. Knots that omit this field are treated as legacy.',
+              },
             },
           },
         },
@@ -742,7 +794,8 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'procedure',
-        description: 'Cancel a running pipeline',
+        description:
+          'DEPRECATED: use sh.tangled.ci.cancelPipeline instead - Cancel a running pipeline',
         input: {
           encoding: 'application/json',
           schema: {
@@ -781,6 +834,7 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
+          description: 'DEPRECATED: use sh.tangled.ci.pipeline instead',
           required: ['triggerMetadata', 'workflows'],
           properties: {
             triggerMetadata: {
@@ -821,17 +875,28 @@ export const schemaDict = {
             type: 'ref',
             ref: 'lex:sh.tangled.pipeline#manualTriggerData',
           },
+          sourceRepo: {
+            type: 'string',
+            format: 'did',
+            description:
+              "Repository DID that code and workflow definitions are checked out from, when different from repo (e.g. a fork's commit for a fork-based manual trigger). If absent, source uses repo itself.",
+          },
         },
       },
       triggerRepo: {
         type: 'object',
-        required: ['knot', 'did', 'repo', 'defaultBranch'],
+        required: ['knot', 'did', 'defaultBranch'],
         properties: {
           knot: {
             type: 'string',
           },
           did: {
             type: 'string',
+            format: 'did',
+          },
+          repoDid: {
+            type: 'string',
+            description: 'DID of the repo itself',
             format: 'did',
           },
           repo: {
@@ -863,7 +928,7 @@ export const schemaDict = {
       },
       pullRequestTriggerData: {
         type: 'object',
-        required: ['sourceBranch', 'targetBranch', 'sourceSha', 'action'],
+        required: ['sourceBranch', 'targetBranch', 'sourceSha'],
         properties: {
           sourceBranch: {
             type: 'string',
@@ -876,14 +941,29 @@ export const schemaDict = {
             minLength: 40,
             maxLength: 40,
           },
-          action: {
+          pull: {
             type: 'string',
+            format: 'at-uri',
+            description:
+              'AT-URI of the sh.tangled.repo.pull record this run belongs to',
           },
         },
       },
       manualTriggerData: {
         type: 'object',
+        required: ['sha'],
         properties: {
+          sha: {
+            type: 'string',
+            description: 'commit SHA the manual run targets',
+            minLength: 40,
+            maxLength: 40,
+          },
+          ref: {
+            type: 'string',
+            description:
+              'optional ref the SHA was resolved from, for display and TANGLED_REF',
+          },
           inputs: {
             type: 'array',
             items: {
@@ -914,7 +994,7 @@ export const schemaDict = {
       },
       cloneOpts: {
         type: 'object',
-        required: ['skip', 'depth', 'submodules'],
+        required: ['skip', 'depth', 'submodules', 'tags'],
         properties: {
           skip: {
             type: 'boolean',
@@ -923,6 +1003,9 @@ export const schemaDict = {
             type: 'integer',
           },
           submodules: {
+            type: 'boolean',
+          },
+          tags: {
             type: 'boolean',
           },
         },
@@ -952,6 +1035,7 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
+          description: 'DEPRECATED: use sh.tangled.ci.pipeline instead',
           required: ['pipeline', 'workflow', 'status', 'createdAt'],
           properties: {
             pipeline: {
@@ -1084,30 +1168,28 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
-          required: ['target', 'title', 'patchBlob', 'createdAt'],
+          required: ['target', 'title', 'createdAt', 'rounds'],
           properties: {
-            target: {
-              type: 'ref',
-              ref: 'lex:sh.tangled.repo.pull#target',
-            },
             title: {
               type: 'string',
             },
             body: {
               type: 'string',
             },
-            patch: {
-              type: 'string',
-              description: '(deprecated) use patchBlob instead',
-            },
-            patchBlob: {
-              type: 'blob',
-              accept: ['text/x-patch'],
-              description: 'patch content',
+            rounds: {
+              type: 'array',
+              items: {
+                type: 'ref',
+                ref: 'lex:sh.tangled.repo.pull#round',
+              },
             },
             source: {
               type: 'ref',
               ref: 'lex:sh.tangled.repo.pull#source',
+            },
+            target: {
+              type: 'ref',
+              ref: 'lex:sh.tangled.repo.pull#target',
             },
             createdAt: {
               type: 'string',
@@ -1127,6 +1209,10 @@ export const schemaDict = {
                 format: 'at-uri',
               },
             },
+            dependentOn: {
+              type: 'string',
+              format: 'at-uri',
+            },
           },
         },
       },
@@ -1136,7 +1222,7 @@ export const schemaDict = {
         properties: {
           repo: {
             type: 'string',
-            format: 'at-uri',
+            format: 'did',
           },
           branch: {
             type: 'string',
@@ -1145,19 +1231,30 @@ export const schemaDict = {
       },
       source: {
         type: 'object',
-        required: ['branch', 'sha'],
+        required: ['branch'],
         properties: {
           branch: {
             type: 'string',
           },
-          sha: {
-            type: 'string',
-            minLength: 40,
-            maxLength: 40,
-          },
           repo: {
             type: 'string',
-            format: 'at-uri',
+            format: 'did',
+          },
+        },
+      },
+      round: {
+        type: 'object',
+        required: ['patchBlob', 'createdAt'],
+        description:
+          'revisions of this pull request, newer rounds are appended to this array. appviews may reject records do not treat this field as append-only. the blob format is gzipped text-based git-format-patches.',
+        properties: {
+          createdAt: {
+            type: 'string',
+            format: 'datetime',
+          },
+          patchBlob: {
+            type: 'blob',
+            accept: ['application/gzip'],
           },
         },
       },
@@ -1174,11 +1271,15 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
-          required: ['pull', 'status'],
+          required: ['pull', 'status', 'createdAt'],
           properties: {
             pull: {
               type: 'string',
               format: 'at-uri',
+            },
+            createdAt: {
+              type: 'string',
+              format: 'datetime',
             },
             status: {
               type: 'string',
@@ -1295,7 +1396,7 @@ export const schemaDict = {
         key: 'tid',
         record: {
           type: 'object',
-          required: ['name', 'repo', 'tag', 'createdAt', 'artifact'],
+          required: ['name', 'tag', 'createdAt', 'artifact'],
           properties: {
             name: {
               type: 'string',
@@ -1305,6 +1406,10 @@ export const schemaDict = {
               type: 'string',
               format: 'at-uri',
               description: 'repo that this artifact is being uploaded to',
+            },
+            repoDid: {
+              type: 'string',
+              format: 'did',
             },
             tag: {
               type: 'bytes',
@@ -1341,8 +1446,8 @@ export const schemaDict = {
           properties: {
             repo: {
               type: 'string',
-              description:
-                "Repository identifier in format 'did:plc:.../repoName'",
+              format: 'did',
+              description: 'DID of the repository',
             },
             ref: {
               type: 'string',
@@ -1402,6 +1507,9 @@ export const schemaDict = {
               lastCommit: {
                 type: 'ref',
                 ref: 'lex:sh.tangled.repo.blob#lastCommit',
+              },
+              fileTooLarge: {
+                type: 'boolean',
               },
             },
           },
@@ -1645,8 +1753,8 @@ export const schemaDict = {
             },
             repo: {
               type: 'string',
-              description: 'repo to add this user to',
-              format: 'at-uri',
+              description: 'repo DID to add this user to',
+              format: 'did',
             },
             createdAt: {
               type: 'string',
@@ -1718,11 +1826,15 @@ export const schemaDict = {
           encoding: 'application/json',
           schema: {
             type: 'object',
-            required: ['rkey'],
+            required: ['rkey', 'name'],
             properties: {
               rkey: {
                 type: 'string',
                 description: 'Rkey of the repository record',
+              },
+              name: {
+                type: 'string',
+                description: 'Name of the repository',
               },
               defaultBranch: {
                 type: 'string',
@@ -1732,6 +1844,24 @@ export const schemaDict = {
                 type: 'string',
                 description:
                   'A source URL to clone from, populate this when forking or importing a repository.',
+              },
+              repoDid: {
+                type: 'string',
+                format: 'did',
+                description:
+                  'Optional user-provided did:web to use as the repo identity instead of minting a did:plc.',
+              },
+            },
+          },
+        },
+        output: {
+          encoding: 'application/json',
+          schema: {
+            type: 'object',
+            properties: {
+              repoDid: {
+                type: 'string',
+                format: 'did',
               },
             },
           },
@@ -2478,14 +2608,14 @@ export const schemaDict = {
     defs: {
       main: {
         type: 'record',
-        key: 'tid',
+        key: 'any',
         record: {
           type: 'object',
-          required: ['name', 'knot', 'createdAt'],
+          required: ['knot', 'createdAt'],
           properties: {
             name: {
               type: 'string',
-              description: 'name of the repo',
+              description: 'Cosmetic name of the repo.',
             },
             knot: {
               type: 'string',
@@ -2527,6 +2657,11 @@ export const schemaDict = {
                 type: 'string',
                 format: 'at-uri',
               },
+            },
+            repoDid: {
+              type: 'string',
+              format: 'did',
+              description: 'DID of the repo itself, if assigned',
             },
             createdAt: {
               type: 'string',

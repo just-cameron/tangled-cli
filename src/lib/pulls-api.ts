@@ -5,15 +5,30 @@ import type { TangledApiClient } from './api-client.js';
 import { getBacklinks } from './constellation.js';
 
 /**
- * Pull request record type based on sh.tangled.repo.pull lexicon
+ * A single revision of a pull request: the lexicon's `#round`. Newer rounds
+ * are appended; the last element is the current diff.
+ */
+export interface PullRound {
+  createdAt: string;
+  patchBlob: BlobRef;
+}
+
+/**
+ * Pull request record type based on sh.tangled.repo.pull lexicon.
+ * `target.repo` is the bare repo DID (lexicon format "did"), never an
+ * AT-URI. `target.repoDid` duplicates it — not in the published lexicon,
+ * but present on every appview-indexed record observed in the wild; the
+ * appview's own ingestion pipeline appears to key off it. `source.repo` is
+ * for cross-repo (fork) pulls, which this CLI does not yet create, so it
+ * is only ever set when explicitly provided.
  */
 export interface PullRecord {
   $type: 'sh.tangled.repo.pull';
-  target: { repo: string; branch: string };
+  target: { repo: string; branch: string; repoDid: string };
   title: string;
   body?: string;
-  patchBlob: BlobRef;
-  source?: { branch: string; sha: string; repo?: string };
+  rounds: PullRound[];
+  source?: { branch: string; repo?: string };
   createdAt: string;
   mentions?: string[];
   references?: string[];
@@ -34,12 +49,11 @@ export interface PullWithMetadata extends PullRecord {
  */
 export interface CreatePullParams {
   client: TangledApiClient;
-  repoAtUri: string;
+  repoDid: string;
   title: string;
   body?: string;
   targetBranch: string;
   sourceBranch: string;
-  sourceSha: string;
   patchBuffer: Buffer;
 }
 
@@ -48,7 +62,7 @@ export interface CreatePullParams {
  */
 export interface ListPullsParams {
   client: TangledApiClient;
-  repoAtUri: string;
+  repoDid: string;
   limit?: number;
   cursor?: string;
 }
@@ -65,6 +79,14 @@ export interface GetPullParams {
  * Parameters for getting pull request state
  */
 export interface GetPullStateParams {
+  client: TangledApiClient;
+  pullUri: string;
+}
+
+/**
+ * Parameters for deleting a pull request
+ */
+export interface DeletePullParams {
   client: TangledApiClient;
   pullUri: string;
 }
@@ -110,8 +132,7 @@ function parsePullUri(pullUri: string): {
  * Create a new pull request
  */
 export async function createPull(params: CreatePullParams): Promise<PullWithMetadata> {
-  const { client, repoAtUri, title, body, targetBranch, sourceBranch, sourceSha, patchBuffer } =
-    params;
+  const { client, repoDid, title, body, targetBranch, sourceBranch, patchBuffer } = params;
 
   // Validate authentication
   const session = await requireAuth(client);
@@ -122,23 +143,25 @@ export async function createPull(params: CreatePullParams): Promise<PullWithMeta
       encoding: 'application/gzip',
     });
     const patchBlob = blobResponse.data.blob;
+    const createdAt = new Date().toISOString();
 
-    // Build pull request record
+    // Build pull request record. The first round carries the initial diff;
+    // later revisions (not yet supported by this CLI) would append here.
+    // source.repo is left unset: this CLI only creates same-repo pulls.
     const record: PullRecord = {
       $type: 'sh.tangled.repo.pull',
       target: {
-        repo: repoAtUri,
+        repo: repoDid,
         branch: targetBranch,
+        repoDid,
       },
       title,
       body,
-      patchBlob,
+      rounds: [{ createdAt, patchBlob }],
       source: {
         branch: sourceBranch,
-        sha: sourceSha,
-        repo: repoAtUri,
       },
-      createdAt: new Date().toISOString(),
+      createdAt,
     };
 
     // Create record via AT Protocol
@@ -169,7 +192,7 @@ export async function listPulls(params: ListPullsParams): Promise<{
   pulls: PullWithMetadata[];
   cursor?: string;
 }> {
-  const { client, repoAtUri, limit = 50, cursor } = params;
+  const { client, repoDid, limit = 50, cursor } = params;
 
   // Validate authentication
   await requireAuth(client);
@@ -177,7 +200,7 @@ export async function listPulls(params: ListPullsParams): Promise<{
   try {
     // Query constellation for all pull requests that reference this repo
     const backlinks = await getBacklinks(
-      repoAtUri,
+      repoDid,
       'sh.tangled.repo.pull',
       '.target.repo',
       limit,
@@ -252,6 +275,36 @@ export async function getPull(params: GetPullParams): Promise<PullWithMetadata> 
 }
 
 /**
+ * Delete a pull request. Only the author may delete their own pull request.
+ */
+export async function deletePull(params: DeletePullParams): Promise<void> {
+  const { client, pullUri } = params;
+
+  // Validate authentication
+  const session = await requireAuth(client);
+
+  // Parse pull URI
+  const { did, collection, rkey } = parsePullUri(pullUri);
+
+  if (did !== session.did) {
+    throw new Error('Cannot delete pull request: you are not the author');
+  }
+
+  try {
+    await client.getAgent().com.atproto.repo.deleteRecord({
+      repo: did,
+      collection,
+      rkey,
+    });
+  } catch (error) {
+    if (error instanceof Error) {
+      throw new Error(`Failed to delete pull request: ${error.message}`);
+    }
+    throw new Error('Failed to delete pull request: Unknown error');
+  }
+}
+
+/**
  * Get the state of a pull request (open, closed, or merged)
  * @returns 'open', 'closed', or 'merged' (defaults to 'open' if no state record exists)
  */
@@ -320,12 +373,12 @@ export async function resolveSequentialPullNumber(
   displayId: string,
   pullUri: string,
   client: TangledApiClient,
-  repoAtUri: string
+  repoDid: string
 ): Promise<number | undefined> {
   const match = displayId.match(/^#(\d+)$/);
   if (match) return Number.parseInt(match[1], 10);
 
-  const { pulls } = await listPulls({ client, repoAtUri, limit: 100 });
+  const { pulls } = await listPulls({ client, repoDid, limit: 100 });
   const sorted = pulls.sort(
     (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
   );
@@ -341,11 +394,11 @@ export async function getCompletePullData(
   client: TangledApiClient,
   pullUri: string,
   displayId: string,
-  repoAtUri: string
+  repoDid: string
 ): Promise<PullData> {
   const [pull, number, state] = await Promise.all([
     getPull({ client, pullUri }),
-    resolveSequentialPullNumber(displayId, pullUri, client, repoAtUri),
+    resolveSequentialPullNumber(displayId, pullUri, client, repoDid),
     getPullState({ client, pullUri }),
   ]);
   return {

@@ -10,6 +10,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'sh.tangled.pipeline'
 
+/** DEPRECATED: use sh.tangled.ci.pipeline instead */
 export interface Main {
   $type: 'sh.tangled.pipeline'
   triggerMetadata: TriggerMetadata
@@ -40,6 +41,8 @@ export interface TriggerMetadata {
   push?: PushTriggerData
   pullRequest?: PullRequestTriggerData
   manual?: ManualTriggerData
+  /** Repository DID that code and workflow definitions are checked out from, when different from repo (e.g. a fork's commit for a fork-based manual trigger). If absent, source uses repo itself. */
+  sourceRepo?: string
 }
 
 const hashTriggerMetadata = 'triggerMetadata'
@@ -56,7 +59,9 @@ export interface TriggerRepo {
   $type?: 'sh.tangled.pipeline#triggerRepo'
   knot: string
   did: string
-  repo: string
+  /** DID of the repo itself */
+  repoDid?: string
+  repo?: string
   defaultBranch: string
 }
 
@@ -92,7 +97,8 @@ export interface PullRequestTriggerData {
   sourceBranch: string
   targetBranch: string
   sourceSha: string
-  action: string
+  /** AT-URI of the sh.tangled.repo.pull record this run belongs to */
+  pull?: string
 }
 
 const hashPullRequestTriggerData = 'pullRequestTriggerData'
@@ -107,6 +113,10 @@ export function validatePullRequestTriggerData<V>(v: V) {
 
 export interface ManualTriggerData {
   $type?: 'sh.tangled.pipeline#manualTriggerData'
+  /** commit SHA the manual run targets */
+  sha: string
+  /** optional ref the SHA was resolved from, for display and TANGLED_REF */
+  ref?: string
   inputs?: Pair[]
 }
 
@@ -143,6 +153,7 @@ export interface CloneOpts {
   skip: boolean
   depth: number
   submodules: boolean
+  tags: boolean
 }
 
 const hashCloneOpts = 'cloneOpts'

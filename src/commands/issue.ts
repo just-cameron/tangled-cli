@@ -13,7 +13,7 @@ import {
   resolveSequentialNumber,
   updateIssue,
 } from '../lib/issues-api.js';
-import { buildRepoAtUri } from '../utils/at-uri.js';
+import { resolveRepoDid } from '../utils/at-uri.js';
 import { ensureAuthenticated, requireAuth } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
 import { formatDate, formatIssueState, outputJson } from '../utils/formatting.js';
@@ -27,17 +27,25 @@ function extractRkey(uri: string): string {
   return parts[parts.length - 1] || 'unknown';
 }
 
+
+/** Aliases for local-scan matching of legacy/buggy `.repo` values. */
+function repoAliasesFor(context: { owner: string; name: string }): string[] {
+  return Array.from(
+    new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+  );
+}
+
 /**
  * Resolve issue number or rkey to full AT-URI
  * @param input - User input: number ("1"), hash ("#1"), or rkey ("3mef...")
  * @param client - API client
- * @param repoAtUri - Repository AT-URI
+ * @param repoDid - Repository DID
  * @returns Object with full issue AT-URI and display identifier
  */
 async function resolveIssueUri(
   input: string,
   client: TangledApiClient,
-  repoAtUri: string,
+  repoDid: string,
   repoAliases: string[] = []
 ): Promise<{ uri: string; displayId: string }> {
   // Strip # prefix if present
@@ -54,7 +62,7 @@ async function resolveIssueUri(
     // Query all issues for this repo
     const { issues } = await listIssues({
       client,
-      repoAtUri,
+      repoDid,
       repoAliases,
       limit: 100, // Adjust if needed for large repos
     });
@@ -123,17 +131,15 @@ function createViewCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        const repoAliases = Array.from(
-          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
-        );
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoAliases = repoAliasesFor(context);
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoDid, repoAliases);
 
         // 5. Fetch complete issue data (record, sequential number, state)
-        const issueData = await getCompleteIssueData(client, issueUri, displayId, repoAtUri);
+        const issueData = await getCompleteIssueData(client, issueUri, displayId, repoDid);
 
         // 6. Output result
         if (options.json !== undefined) {
@@ -199,14 +205,12 @@ function createEditCommand(): Command {
             process.exit(1);
           }
 
-          // 4. Build repo AT-URI
-          const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        const repoAliases = Array.from(
-          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
-        );
+          // 4. Resolve repo DID
+          const repoDid = await resolveRepoDid(context.owner, context.name, client);
+          const repoAliases = repoAliasesFor(context);
 
           // 5. Resolve issue ID to URI
-          const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
+          const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoDid, repoAliases);
 
           // 6. Handle body input
           const body = await readBodyInput(options.body, options.bodyFile);
@@ -226,7 +230,7 @@ function createEditCommand(): Command {
           // 9. Output result
           if (options.json !== undefined) {
             const [number, state] = await Promise.all([
-              resolveSequentialNumber(displayId, updatedIssue.uri, client, repoAtUri),
+              resolveSequentialNumber(displayId, updatedIssue.uri, client, repoDid),
               getIssueState({ client, issueUri: updatedIssue.uri }),
             ]);
             const issueData: IssueData = {
@@ -282,21 +286,19 @@ function createCloseCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        const repoAliases = Array.from(
-          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
-        );
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoAliases = repoAliasesFor(context);
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoDid, repoAliases);
 
         // 5. Fetch complete issue data (state will be 'closed' after operation)
         const issueData = await getCompleteIssueData(
           client,
           issueUri,
           displayId,
-          repoAtUri,
+          repoDid,
           'closed'
         );
 
@@ -342,23 +344,15 @@ function createReopenCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        const repoAliases = Array.from(
-          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
-        );
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoAliases = repoAliasesFor(context);
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoDid, repoAliases);
 
         // 5. Fetch complete issue data (state will be 'open' after operation)
-        const issueData = await getCompleteIssueData(
-          client,
-          issueUri,
-          displayId,
-          repoAtUri,
-          'open'
-        );
+        const issueData = await getCompleteIssueData(client, issueUri, displayId, repoDid, 'open');
 
         // 6. Reopen issue
         await reopenIssue({ client, issueUri });
@@ -434,8 +428,9 @@ function createCreateCommand(): Command {
             validateIssueBody(body);
           }
 
-          // 5. Build repo AT-URI
-          const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+          // 5. Resolve repo DID
+          const repoDid = await resolveRepoDid(context.owner, context.name, client);
+          const repoAliases = repoAliasesFor(context);
 
           // 6. Create issue (suppress progress message in JSON mode)
           if (options.json === undefined) {
@@ -443,13 +438,13 @@ function createCreateCommand(): Command {
           }
           const issue = await createIssue({
             client,
-            repoAtUri,
+            repoDid,
             title: validTitle,
             body,
           });
 
           // 7. Compute sequential number
-          const { issues: allIssues } = await listIssues({ client, repoAtUri, limit: 100 });
+          const { issues: allIssues } = await listIssues({ client, repoDid, repoAliases: repoAliasesFor(context), limit: 100 });
           const sortedAll = allIssues.sort(
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           );
@@ -509,11 +504,9 @@ function createListCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-        const repoAliases = Array.from(
-          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
-        );
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoAliases = repoAliasesFor(context);
 
         // 4. Fetch issues
         const limit = Number.parseInt(options.limit, 10);
@@ -524,7 +517,7 @@ function createListCommand(): Command {
 
         const { issues } = await listIssues({
           client,
-          repoAtUri,
+          repoDid,
           repoAliases,
           limit,
         });

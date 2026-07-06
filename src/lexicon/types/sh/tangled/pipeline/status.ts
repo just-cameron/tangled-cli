@@ -14,6 +14,7 @@ const is$typed = _is$typed,
   validate = _validate
 const id = 'sh.tangled.pipeline.status'
 
+/** DEPRECATED: use sh.tangled.ci.pipeline instead */
 export interface Main {
   $type: 'sh.tangled.pipeline.status'
   /** ATURI of the pipeline */

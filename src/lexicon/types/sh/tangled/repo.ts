@@ -12,8 +12,8 @@ const id = 'sh.tangled.repo'
 
 export interface Main {
   $type: 'sh.tangled.repo'
-  /** name of the repo */
-  name: string
+  /** Cosmetic name of the repo. */
+  name?: string
   /** knot where the repo was created */
   knot: string
   /** CI runner to send jobs to and receive results from */
@@ -27,6 +27,8 @@ export interface Main {
   source?: string
   /** List of labels that this repo subscribes to */
   labels?: string[]
+  /** DID of the repo itself, if assigned */
+  repoDid?: string
   createdAt: string
   [k: string]: unknown
 }

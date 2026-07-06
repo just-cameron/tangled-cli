@@ -6,8 +6,14 @@ import { simpleGit } from 'simple-git';
 import { createApiClient } from '../lib/api-client.js';
 import { getCurrentRepoContext } from '../lib/context.js';
 import type { PullData } from '../lib/pulls-api.js';
-import { createPull, getCompletePullData, getPullState, listPulls } from '../lib/pulls-api.js';
-import { buildRepoAtUri } from '../utils/at-uri.js';
+import {
+  createPull,
+  deletePull,
+  getCompletePullData,
+  getPullState,
+  listPulls,
+} from '../lib/pulls-api.js';
+import { resolveRepoDid } from '../utils/at-uri.js';
 import { ensureAuthenticated } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
 import { formatDate, outputJson } from '../utils/formatting.js';
@@ -40,12 +46,12 @@ function extractRkey(uri: string): string {
  * Resolve PR number or rkey to full AT-URI
  * @param input - User input: number ("1"), hash ("#1"), or rkey ("3mef...")
  * @param client - API client
- * @param repoAtUri - Repository AT-URI
+ * @param repoDid - Repository DID
  */
 async function resolvePullUri(
   input: string,
   client: ReturnType<typeof createApiClient>,
-  repoAtUri: string
+  repoDid: string
 ): Promise<{ uri: string; displayId: string }> {
   // Strip # prefix if present
   const normalized = input.startsWith('#') ? input.slice(1) : input;
@@ -60,7 +66,7 @@ async function resolvePullUri(
 
     const { pulls } = await listPulls({
       client,
-      repoAtUri,
+      repoDid,
       limit: 100,
     });
 
@@ -95,7 +101,7 @@ async function resolvePullUri(
     throw new Error(`Invalid pull request identifier: ${input}`);
   }
 
-  const { pulls } = await listPulls({ client, repoAtUri, limit: 100 });
+  const { pulls } = await listPulls({ client, repoDid, limit: 100 });
   const matches = pulls.filter((pull) => extractRkey(pull.uri).startsWith(normalized));
   if (matches.length === 0) {
     throw new Error(`Pull request '${input}' not found`);
@@ -164,10 +170,7 @@ function createCreateCommand(): Command {
           // 3. Determine head branch
           const headBranch = options.head ?? (await git.revparse(['--abbrev-ref', 'HEAD'])).trim();
 
-          // 4. Get source SHA
-          const sourceSha = (await git.revparse([headBranch])).trim();
-
-          // 5. Behind-base check
+          // 4. Behind-base check
           if (!options.skipBehindCheck) {
             const behindLog = await git.log([`${headBranch}..${baseBranch}`]);
             const behindCount = behindLog.total;
@@ -192,7 +195,7 @@ function createCreateCommand(): Command {
             }
           }
 
-          // 6. Generate patch
+          // 5. Generate patch
           const patchContent = await git.diff([`${baseBranch}..${headBranch}`]);
           if (!patchContent) {
             console.error(
@@ -201,32 +204,31 @@ function createCreateCommand(): Command {
             process.exit(1);
           }
 
-          // 7. Gzip the patch
+          // 6. Gzip the patch
           const patchBuffer = await gzip(Buffer.from(patchContent, 'utf-8'));
 
-          // 8. Handle body input
+          // 7. Handle body input
           const body = await readBodyInput(options.body, options.bodyFile);
 
-          // 9. Build repo AT-URI
-          const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+          // 8. Resolve repo DID
+          const repoDid = await resolveRepoDid(context.owner, context.name, client);
 
-          // 10. Create pull request
+          // 9. Create pull request
           if (options.json === undefined) {
             console.log('Creating pull request...');
           }
           const pull = await createPull({
             client,
-            repoAtUri,
+            repoDid,
             title,
             body,
             targetBranch: baseBranch,
             sourceBranch: headBranch,
-            sourceSha,
             patchBuffer,
           });
 
-          // 11. Compute sequential number
-          const { pulls: allPulls } = await listPulls({ client, repoAtUri, limit: 100 });
+          // 10. Compute sequential number
+          const { pulls: allPulls } = await listPulls({ client, repoDid, limit: 100 });
           const sortedAll = allPulls.sort(
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           );
@@ -289,8 +291,8 @@ function createListCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
 
         // 4. Fetch pull requests
         const limit = Number.parseInt(options.limit, 10);
@@ -301,7 +303,7 @@ function createListCommand(): Command {
 
         const { pulls } = await listPulls({
           client,
-          repoAtUri,
+          repoDid,
           limit,
         });
 
@@ -391,14 +393,14 @@ function createViewCommand(): Command {
           process.exit(1);
         }
 
-        // 3. Build repo AT-URI
-        const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
 
         // 4. Resolve PR ID to URI
-        const { uri: pullUri, displayId } = await resolvePullUri(prId, client, repoAtUri);
+        const { uri: pullUri, displayId } = await resolvePullUri(prId, client, repoDid);
 
         // 5. Fetch complete pull request data
-        const pullData = await getCompletePullData(client, pullUri, displayId, repoAtUri);
+        const pullData = await getCompletePullData(client, pullUri, displayId, repoDid);
 
         // 6. Output result
         if (options.json !== undefined) {
@@ -434,6 +436,60 @@ function createViewCommand(): Command {
 }
 
 /**
+ * PR delete subcommand
+ */
+function createDeleteCommand(): Command {
+  return new Command('delete')
+    .description('Delete a pull request you authored')
+    .argument('<pr-id>', 'Pull request number (e.g., 1, #2) or rkey')
+    .option('-y, --yes', 'Skip the confirmation prompt')
+    .action(async (prId: string, options: { yes?: boolean }) => {
+      try {
+        // 1. Validate auth
+        const client = createApiClient();
+        await ensureAuthenticated(client);
+
+        // 2. Get repo context
+        const context = await getCurrentRepoContext();
+        if (!context) {
+          console.error('✗ Not in a Tangled repository');
+          console.error('\nTo use this repository with Tangled, add a remote:');
+          console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
+          process.exit(1);
+        }
+
+        // 3. Resolve repo DID
+        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+
+        // 4. Resolve PR ID to URI
+        const { uri: pullUri, displayId } = await resolvePullUri(prId, client, repoDid);
+        const pull = await getCompletePullData(client, pullUri, displayId, repoDid);
+
+        // 5. Confirm
+        if (!options.yes) {
+          const proceed = await confirm({
+            message: `Delete pull request ${displayId} ("${pull.title}")? This cannot be undone.`,
+            default: false,
+          });
+          if (!proceed) {
+            console.log('Aborted.');
+            return;
+          }
+        }
+
+        // 6. Delete
+        await deletePull({ client, pullUri });
+        console.log(`✓ Pull request ${displayId} deleted`);
+      } catch (error) {
+        console.error(
+          `✗ Failed to delete pull request: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+        process.exit(1);
+      }
+    });
+}
+
+/**
  * Create the pr command with all subcommands
  */
 export function createPrCommand(): Command {
@@ -443,6 +499,7 @@ export function createPrCommand(): Command {
   pr.addCommand(createCreateCommand());
   pr.addCommand(createListCommand());
   pr.addCommand(createViewCommand());
+  pr.addCommand(createDeleteCommand());
 
   return pr;
 }
