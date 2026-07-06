@@ -7,6 +7,7 @@ import { createAuthCommand } from './commands/auth.js';
 import { createConfigCommand } from './commands/config.js';
 import { createContextCommand } from './commands/context.js';
 import { createIssueCommand } from './commands/issue.js';
+import { createPrCommand } from './commands/pr.js';
 import { createSshKeyCommand } from './commands/ssh-key.js';
 
 // Get package.json for version
@@ -17,7 +18,7 @@ const packageJson = JSON.parse(readFileSync(join(__dirname, '../package.json'), 
 const program = new Command();
 
 program
-  .name('tangled')
+  .name('tang')
   .description('A CLI for Tangled.org - AT Protocol-based Git hosting')
   .version(packageJson.version, '-v, --version', 'Output the current version');
 
@@ -27,5 +28,6 @@ program.addCommand(createSshKeyCommand());
 program.addCommand(createConfigCommand());
 program.addCommand(createContextCommand());
 program.addCommand(createIssueCommand());
+program.addCommand(createPrCommand());
 
 program.parse(process.argv);

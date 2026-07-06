@@ -35,6 +35,9 @@ tang ssh-key add ~/.ssh/id_ed25519.pub
 | `tang issue view <n>` | View an issue |
 | `tang issue close <n>` | Close an issue |
 | `tang issue reopen <n>` | Reopen an issue |
+| `tang pr create --base <base> --head <head> --title <title>` | Create a pull request from a pushed branch |
+| `tang pr list` | List pull requests for the current repo |
+| `tang pr view <n>` | View a pull request |
 | `tang ssh-key add <path>` | Upload a public SSH key to your account |
 | `tang context` | Show resolved repo context (DID, handle, name) |
 | `tang config` | View or set CLI configuration |
@@ -133,46 +136,41 @@ Following `gh`'s pattern, `tangled issue create` will support various ways to pr
 ## Examples Tangled CLI Usage
 
 ```bash
-tangled auth login (opens a browser for auth)
-tangled repo create my-new-repo
+tang auth login
+tang repo create my-new-repo
 cd my-new-repo
-tangled issue create "Bug: Something is broken" --body "Detailed description of the bug here."
-echo "Another bug description from stdin." | tangled issue create "Bug: From stdin" --body-file -
-tangled issue list --json "id,title"
-tangled pr create --base main --head my-feature --title "Add new feature" --body-file ./pr_description.md
-tangled pr view 123
-tangled pr comment 123 --body "Looks good, small change needed."
+tang issue create "Bug: Something is broken" --body "Detailed description of the bug here."
+echo "Another bug description from stdin." | tang issue create "Bug: From stdin" --body-file -
+tang issue list --json "id,title"
+tang pr create --base main --head my-feature --title "Add new feature" --body-file ./pr_description.md
+tang pr view 123
 ```
 
 ## Basic Commands
 
 Basic commands include auth, key management, repo creation, issue management, and pull request management.
 
-`tangled auth login`
+`tang auth login`
 
 - Logs in the user, ideally through a web browser flow for security.
-  `tangled auth logout`
+  `tang auth logout`
 - Logs out the user, clearing the session.
-  `tangled ssh-key add <public-key-path>`
+  `tang ssh-key add <public-key-path>`
 - Uploads the provided public SSH key to the user's tangled.org account via the API.
-  `tangled ssh-key verify`
+  `tang ssh-key verify`
 - Verifies that the user's SSH key is correctly set up and can authenticate with tangled.org. Returns the associated DID and handle if successful.
-  `tangled repo create <repo-name>`
+  `tang repo create <repo-name>`
 - Creates a new repository under the user's account.
-  `tangled repo view [--json <fields>]`
+  `tang repo view [--json <fields>]`
 - Displays details about the current repository. If `--json` is provided, outputs only the specified fields in JSON format.
-  `tangled issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
+  `tang issue create "<title>" [--body "<body>" | --body-file <file> | -F -]`
 - Creates a new issue in the current repository with the given title and optional body, which can be provided via flag, file, or stdin.
-  `tangled pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]`
+  `tang pr create --base <base-branch> --head <head-branch> --title <title> [--body <body> | --body-file <file> | -F -]`
 - Creates a new pull request in the current repository from a head branch to a base branch.
-  `tangled pr list [--json <fields>]`
+  `tang pr list [--json <fields>]`
 - Lists pull requests for the current repository.
-  `tangled pr view <id> [--json <fields>]`
-- Displays detailed information about a specific pull request, including comments.
-  `tangled pr comment <id> [--body <body> | --body-file <file> | -F -]`
-- Adds a comment to a pull request.
-  `tangled pr review <id> --comment <comment> [--approve | --request-changes]`
-- Submits a review for a pull request, with optional approval or request for changes.
+  `tang pr view <id> [--json <fields>]`
+- Displays detailed information about a specific pull request.
 
 ## Design Decisions & Outstanding Issues
 
@@ -204,7 +202,7 @@ This section documents key design decisions and tracks outstanding architectural
 
 - **Original Question:** Can we allow auth through a web browser?
 - **Resolution:** For the initial version, the CLI will use **App Passwords** for authentication. This is the standard and simplest method for third-party AT Protocol clients and aligns with existing practices.
-- **`tangled auth login` Flow:** When running `tangled auth login`, the CLI will prompt the user for their **PDS handle** (e.g., `@mark.bsky.social`) and an **App Password**.
+- **`tang auth login` Flow:** When running `tang auth login`, the CLI will prompt the user for their **PDS handle** (e.g., `@mark.bsky.social`) and an **App Password**.
 - **Generating an App Password:** Users typically generate App Passwords from their PDS's settings (e.g., in the official Bluesky app under "Settings -> App Passwords", or on their self-hosted PDS web interface). The CLI **does not** generate app passwords.
 - **Session Management:** The session established is with the user's PDS, and this authenticated session is then used to interact with `tangled.org`'s App View/Service.
 - **OAuth Support:** Implementing a web-based OAuth flow (similar to `gh`'s approach) is more complex and not a standard part of the AT Protocol client authentication flow. This approach is deferred for future consideration.
@@ -225,7 +223,7 @@ The analysis of the `tangled.org` API revealed a rich set of features that are n
 
 ## Task Management
 
-Tasks are tracked in the [Tangled issue tracker](https://tangled.org/markbennett.ca/tangled-cli/issues). Use `tangled issue list` or `tangled issue view <n>` to browse tasks.
+Tasks are tracked in the [Tangled issue tracker](https://tangled.org/markbennett.ca/tangled-cli/issues). Use `tang issue list` or `tang issue view <n>` to browse tasks.
 
 ## Development
 

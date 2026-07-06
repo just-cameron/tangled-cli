@@ -23,10 +23,11 @@ describe('Tangled CLI', () => {
       cwd: join(__dirname, '..'),
     });
     expect(output).toContain('A CLI for Tangled.org');
+    expect(output).toContain('Usage: tang');
     expect(output).toContain('Usage:');
   });
 
   it('package.json should have correct name', () => {
-    expect(packageJson.name).toBe('tangled-cli');
+    expect(packageJson.name).toBe('@markbennett/tang');
   });
 });
