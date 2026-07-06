@@ -9,7 +9,7 @@ describe('Git Utilities', () => {
     });
 
     it('should detect HTTPS tangled remotes', () => {
-      expect(isTangledRemote('https://tangled.org/markbennett.ca/tangled-cli')).toBe(true);
+      expect(isTangledRemote('https://tangled.org/alice.bsky.social/tangled-cli')).toBe(true);
       expect(isTangledRemote('https://tangled.org/user.bsky.social/repo')).toBe(true);
     });
 
@@ -70,9 +70,9 @@ describe('Git Utilities', () => {
 
     describe('SSH URLs with handles', () => {
       it('should parse SSH URL with handle instead of DID', () => {
-        const result = parseTangledRemote('git@tangled.org:markbennett.ca/tangled-cli.git');
+        const result = parseTangledRemote('git@tangled.org:alice.bsky.social/tangled-cli.git');
         expect(result).toEqual({
-          owner: 'markbennett.ca',
+          owner: 'alice.bsky.social',
           ownerType: 'handle',
           name: 'tangled-cli',
           protocol: 'ssh',
@@ -82,9 +82,9 @@ describe('Git Utilities', () => {
 
     describe('HTTPS URLs with handles', () => {
       it('should parse https://tangled.org/handle/repo format', () => {
-        const result = parseTangledRemote('https://tangled.org/markbennett.ca/tangled-cli');
+        const result = parseTangledRemote('https://tangled.org/alice.bsky.social/tangled-cli');
         expect(result).toEqual({
-          owner: 'markbennett.ca',
+          owner: 'alice.bsky.social',
           ownerType: 'handle',
           name: 'tangled-cli',
           protocol: 'https',
@@ -102,7 +102,7 @@ describe('Git Utilities', () => {
       });
 
       it('should handle HTTPS URLs without .git extension', () => {
-        const result = parseTangledRemote('https://tangled.org/markbennett.ca/repo');
+        const result = parseTangledRemote('https://tangled.org/alice.bsky.social/repo');
         expect(result?.name).toBe('repo');
       });
     });
@@ -133,13 +133,13 @@ describe('Git Utilities', () => {
 
     describe('edge cases', () => {
       it('should handle trailing slashes', () => {
-        const result = parseTangledRemote('https://tangled.org/markbennett.ca/repo/');
+        const result = parseTangledRemote('https://tangled.org/alice.bsky.social/repo/');
         expect(result?.name).toBe('repo');
       });
 
       it('should handle .git extension in various positions', () => {
         const result1 = parseTangledRemote('git@tangled.org:did:plc:abc123/repo.git');
-        const result2 = parseTangledRemote('https://tangled.org/markbennett.ca/repo.git');
+        const result2 = parseTangledRemote('https://tangled.org/alice.bsky.social/repo.git');
         expect(result1?.name).toBe('repo');
         expect(result2?.name).toBe('repo');
       });

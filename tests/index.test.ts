@@ -28,6 +28,6 @@ describe('Tangled CLI', () => {
   });
 
   it('package.json should have correct name', () => {
-    expect(packageJson.name).toBe('@markbennett/tang');
+    expect(packageJson.name).toBe('tangled-cli');
   });
 });

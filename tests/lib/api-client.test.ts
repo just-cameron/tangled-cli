@@ -74,7 +74,7 @@ describe('TangledApiClient', () => {
     });
 
     it('should support custom domain handles', async () => {
-      const result = await client.login('markbennett.ca', 'password');
+      const result = await client.login('alice.bsky.social', 'password');
 
       expect(result).toEqual(mockSessionData);
       expect(vi.mocked(sessionModule.saveSession)).toHaveBeenCalled();

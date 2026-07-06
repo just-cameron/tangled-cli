@@ -1,7 +1,8 @@
 {
-  "name": "@markbennett/tang",
+  "name": "tangled-cli",
   "version": "0.0.1",
-  "description": "A simple CLI for Tangled.org. Inspired by GitHub CLI, and usable by humans and AI.",
+  "private": true,
+  "description": "A simple CLI for Tangled.org. Inspired by GitHub CLI, and usable by humans and AI. Cameron's fork of markbennett.ca/tangled-cli, maintained independently.",
   "type": "module",
   "main": "./dist/index.js",
   "exports": {
@@ -15,9 +16,6 @@
     "README.md",
     "LICENSE"
   ],
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "dev": "tsx src/index.ts",
     "build": "tsc -p tsconfig.build.json",
@@ -38,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git@tangled.org:markbennett.ca/tangled-cli"
+    "url": "git@tangled.org:cameron.stream/tangled-cli"
   },
   "keywords": [
     "git",
@@ -47,7 +45,7 @@
     "atproto",
     "cli"
   ],
-  "author": "Mark Bennett",
+  "author": "Cameron (cameron.stream)",
   "license": "MIT",
   "dependencies": {
     "@atproto/api": "^0.18.20",

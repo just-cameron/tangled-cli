@@ -69,10 +69,13 @@ export async function resolveHandleToDid(
  *   name to the same DID in git.ts; that DID already *is* the repo's stable
  *   identity, so it is returned directly with no network call.
  * - Owner/name remotes resolve the owner (handle or DID) to a DID, list
- *   their `sh.tangled.repo` records, and find the one matching `repoName`.
- *   If that record carries its own dedicated `repoDid` ("DID of the repo
- *   itself, if assigned" per the lexicon), that is returned; otherwise the
- *   owner's account DID is the best available identifier.
+ *   their `sh.tangled.repo` records, and find the one matching `repoName`
+ *   — by the record's `name` field, or (many older/hand-created records
+ *   never set `name`, keying the repo through its rkey instead) by the
+ *   record's own rkey. If that record carries its own dedicated `repoDid`
+ *   ("DID of the repo itself, if assigned" per the lexicon), that is
+ *   returned; otherwise the owner's account DID is the best available
+ *   identifier.
  *
  * @param ownerDidOrHandle - DID (e.g., "did:plc:abc") or handle (e.g., "mark.bsky.social")
  * @param repoName - Repository name
@@ -104,7 +107,9 @@ export async function resolveRepoDid(
 
     const repoRecord = response.data.records.find((record) => {
       const recordData = record.value as { name?: string };
-      return recordData.name === repoName;
+      if (recordData.name === repoName) return true;
+      const rkey = record.uri.split('/').pop();
+      return rkey === repoName;
     });
 
     if (!repoRecord) {

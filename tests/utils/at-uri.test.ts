@@ -233,6 +233,33 @@ describe('resolveRepoDid', () => {
     expect(result).toBe('did:plc:stablerepoxyz');
   });
 
+  it('should match by rkey when the record has no name field', async () => {
+    const mockListRecords = vi.fn().mockResolvedValue({
+      data: {
+        records: [
+          {
+            uri: 'at://did:plc:abc123/sh.tangled.repo/my-repo',
+            value: { repoDid: 'did:plc:stablerepoxyz', createdAt: '2026-01-01T00:00:00Z' },
+          },
+        ],
+      },
+    });
+
+    vi.mocked(mockClient.getAgent).mockReturnValue({
+      com: {
+        atproto: {
+          repo: {
+            listRecords: mockListRecords,
+          },
+        },
+      },
+    } as never);
+
+    const result = await resolveRepoDid('did:plc:abc123', 'my-repo', mockClient);
+
+    expect(result).toBe('did:plc:stablerepoxyz');
+  });
+
   it('should resolve handle then query for the repo record', async () => {
     const mockResolve = vi.fn().mockResolvedValue({
       data: { did: 'did:plc:abc123' },

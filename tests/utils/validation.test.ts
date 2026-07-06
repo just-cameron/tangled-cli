@@ -22,7 +22,7 @@ describe('Handle Validation', () => {
     });
 
     it('should accept custom domain handles', () => {
-      expect(validateHandle('markbennett.ca')).toBe('markbennett.ca');
+      expect(validateHandle('alice.bsky.social')).toBe('alice.bsky.social');
       expect(validateHandle('example.com')).toBe('example.com');
       expect(validateHandle('subdomain.example.com')).toBe('subdomain.example.com');
     });
@@ -146,7 +146,7 @@ describe('Boolean Validation Helpers', () => {
   describe('isValidHandle', () => {
     it('should return true for valid handles', () => {
       expect(isValidHandle('user.bsky.social')).toBe(true);
-      expect(isValidHandle('markbennett.ca')).toBe(true);
+      expect(isValidHandle('alice.bsky.social')).toBe(true);
       expect(isValidHandle('sub.domain.example.com')).toBe(true);
     });
 

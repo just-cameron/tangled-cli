@@ -48,18 +48,18 @@ describe('Context Command', () => {
 
   it('should display context for HTTPS remote with handle', async () => {
     vi.mocked(contextModule.getCurrentRepoContext).mockResolvedValue({
-      owner: 'markbennett.ca',
+      owner: 'alice.bsky.social',
       ownerType: 'handle',
       name: 'tangled-cli',
       remoteName: 'origin',
-      remoteUrl: 'https://tangled.org/markbennett.ca/tangled-cli',
+      remoteUrl: 'https://tangled.org/alice.bsky.social/tangled-cli',
       protocol: 'https',
     });
 
     const context = createContextCommand();
     await context.parseAsync(['node', 'test']);
 
-    expect(consoleLogSpy).toHaveBeenCalledWith('  Owner: markbennett.ca (handle)');
+    expect(consoleLogSpy).toHaveBeenCalledWith('  Owner: alice.bsky.social (handle)');
     expect(consoleLogSpy).toHaveBeenCalledWith('  Protocol: https');
   });
 

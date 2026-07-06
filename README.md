@@ -13,7 +13,7 @@ Implemented today:
 - local/global CLI config
 - repository context inference from `tangled.org` git remotes
 - issue create/list/view/edit/close/reopen
-- pull request create/list/view
+- pull request create/list/view/delete
 - `--json [fields]` output for script/agent use on supported commands
 
 Not implemented yet:

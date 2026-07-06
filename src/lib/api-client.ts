@@ -26,7 +26,7 @@ export class TangledApiClient {
 
   /**
    * Login with identifier (handle or DID) and password
-   * Supports custom domain handles (e.g., "markbennett.ca")
+   * Supports custom domain handles (e.g., "alice.bsky.social")
    *
    * @param identifier - User's handle or DID
    * @param password - App password

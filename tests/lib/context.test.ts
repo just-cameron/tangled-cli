@@ -79,7 +79,7 @@ describe('Context Resolution', () => {
         getRemotes: vi.fn().mockResolvedValue([
           {
             name: 'origin',
-            refs: { fetch: 'https://tangled.org/markbennett.ca/tangled-cli' },
+            refs: { fetch: 'https://tangled.org/alice.bsky.social/tangled-cli' },
           },
         ]),
       };
@@ -89,11 +89,11 @@ describe('Context Resolution', () => {
 
       expect(remotes).toEqual([
         {
-          owner: 'markbennett.ca',
+          owner: 'alice.bsky.social',
           ownerType: 'handle',
           name: 'tangled-cli',
           remoteName: 'origin',
-          remoteUrl: 'https://tangled.org/markbennett.ca/tangled-cli',
+          remoteUrl: 'https://tangled.org/alice.bsky.social/tangled-cli',
           protocol: 'https',
         },
       ]);

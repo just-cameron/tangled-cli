@@ -9,7 +9,7 @@ import { promptForRemoteSelection, promptToSaveRemote } from '../utils/prompts.j
 import { getConfiguredRemote, setLocalRemote } from './config.js';
 
 export interface RepositoryContext {
-  owner: string; // Owner identifier - DID (e.g., "did:plc:...") or handle (e.g., "markbennett.ca")
+  owner: string; // Owner identifier - DID (e.g., "did:plc:...") or handle (e.g., "alice.bsky.social")
   ownerType: 'did' | 'handle'; // Type of owner identifier
   name: string; // Repository name (e.g., "tangled-cli")
   remoteName: string; // Git remote name (e.g., "origin")
