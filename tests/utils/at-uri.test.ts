@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
-import { buildRepoAtUri, parseAtUri, resolveHandleToDid } from '../../src/utils/at-uri.js';
+import {
+  buildRepoAtUri,
+  parseAtUri,
+  resolveHandleToDid,
+  resolveStableRepoDidToAtUri,
+} from '../../src/utils/at-uri.js';
 
 // Mock API client
 const createMockClient = (): TangledApiClient => {
@@ -74,6 +79,37 @@ describe('resolveHandleToDid', () => {
 
   beforeEach(() => {
     mockClient = createMockClient();
+    vi.unstubAllGlobals();
+  });
+
+  it('should resolve stable repo DID permalinks from Tangled page markup', async () => {
+    const html = `
+      <div data-star-subject-at="at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned"></div>
+      <span>git@tangled.org:did:plc:t53fxjacrmulx3e5d3sbdfui</span>
+    `;
+    const fetchMock = vi.fn().mockResolvedValue(new Response(html, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveStableRepoDidToAtUri('did:plc:t53fxjacrmulx3e5d3sbdfui');
+
+    expect(result).toBe('at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned');
+    expect(fetchMock).toHaveBeenCalledWith('https://tangled.org/did:plc:t53fxjacrmulx3e5d3sbdfui', {
+      headers: { accept: 'text/html' },
+    });
+  });
+
+  it('should build repo AT-URI directly for stable DID-only remotes', async () => {
+    const html = `data-star-subject-at="at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned"`;
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(html, { status: 200 })));
+
+    const result = await buildRepoAtUri(
+      'did:plc:t53fxjacrmulx3e5d3sbdfui',
+      'did:plc:t53fxjacrmulx3e5d3sbdfui',
+      mockClient
+    );
+
+    expect(result).toBe('at://did:plc:gfrmhdmjvxn2sjedzboeudef/sh.tangled.repo/misaligned');
+    expect(mockClient.getAgent).not.toHaveBeenCalled();
   });
 
   it('should resolve handle to DID', async () => {
