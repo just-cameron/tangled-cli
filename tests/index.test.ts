@@ -23,6 +23,7 @@ describe('Tangled CLI', () => {
       cwd: join(__dirname, '..'),
     });
     expect(output).toContain('A CLI for Tangled.org');
+    expect(output).toContain('Usage: tang');
     expect(output).toContain('Usage:');
   });
 
