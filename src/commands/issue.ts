@@ -444,7 +444,12 @@ function createCreateCommand(): Command {
           });
 
           // 7. Compute sequential number
-          const { issues: allIssues } = await listIssues({ client, repoDid, repoAliases: repoAliasesFor(context), limit: 100 });
+          const { issues: allIssues } = await listIssues({
+            client,
+            repoDid,
+            repoAliases,
+            limit: 100,
+          });
           const sortedAll = allIssues.sort(
             (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
           );

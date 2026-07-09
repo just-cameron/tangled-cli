@@ -22,7 +22,7 @@ const createMockClient = (authenticated = true): TangledApiClient => {
       atproto: {
         repo: {
           createRecord: vi.fn(),
-          listRecords: vi.fn(),
+          listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
           getRecord: vi.fn(),
           putRecord: vi.fn(),
           deleteRecord: vi.fn(),
@@ -67,13 +67,13 @@ describe('createIssue', () => {
 
     const result = await createIssue({
       client: mockClient,
-      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'did:plc:owner',
       title: 'Bug: Login fails',
       body: 'Detailed description of the bug',
     });
 
     expect(result).toMatchObject({
-      repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repo: 'did:plc:owner',
       title: 'Bug: Login fails',
       body: 'Detailed description of the bug',
       uri: 'at://did:plc:test123/sh.tangled.repo.issue/abc123',
@@ -86,7 +86,7 @@ describe('createIssue', () => {
       collection: 'sh.tangled.repo.issue',
       record: expect.objectContaining({
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repo: 'did:plc:owner',
         title: 'Bug: Login fails',
         body: 'Detailed description of the bug',
         createdAt: expect.any(String),
@@ -114,7 +114,7 @@ describe('createIssue', () => {
 
     const result = await createIssue({
       client: mockClient,
-      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'did:plc:owner',
       title: 'Simple issue',
     });
 
@@ -128,7 +128,7 @@ describe('createIssue', () => {
     await expect(
       createIssue({
         client: mockClient,
-        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'did:plc:owner',
         title: 'Test',
       })
     ).rejects.toThrow('Must be authenticated');
@@ -150,7 +150,7 @@ describe('createIssue', () => {
     await expect(
       createIssue({
         client: mockClient,
-        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'did:plc:owner',
         title: 'Test',
       })
     ).rejects.toThrow('Failed to create issue: API error');
@@ -182,7 +182,7 @@ describe('listIssues', () => {
           cid: 'cid1',
           value: {
             $type: 'sh.tangled.repo.issue',
-            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            repo: 'did:plc:owner',
             title: 'Issue 1',
             body: 'Description 1',
             createdAt: '2024-01-01T00:00:00.000Z',
@@ -195,7 +195,7 @@ describe('listIssues', () => {
           cid: 'cid2',
           value: {
             $type: 'sh.tangled.repo.issue',
-            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            repo: 'did:plc:owner',
             title: 'Issue 2',
             createdAt: '2024-01-02T00:00:00.000Z',
           },
@@ -203,12 +203,19 @@ describe('listIssues', () => {
       });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await listIssues({
       client: mockClient,
-      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'did:plc:owner',
     });
 
     expect(result.issues).toHaveLength(2);
@@ -225,7 +232,7 @@ describe('listIssues', () => {
     });
 
     expect(getBacklinks).toHaveBeenCalledWith(
-      'at://did:plc:owner/sh.tangled.repo/my-repo',
+      'did:plc:owner',
       'sh.tangled.repo.issue',
       '.repo',
       50,
@@ -238,7 +245,7 @@ describe('listIssues', () => {
 
     const result = await listIssues({
       client: mockClient,
-      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'did:plc:owner',
     });
 
     expect(result.issues).toEqual([]);
@@ -249,7 +256,7 @@ describe('listIssues', () => {
 
     const result = await listIssues({
       client: mockClient,
-      repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+      repoDid: 'did:plc:owner',
     });
 
     expect(result.cursor).toBe('nextpage');
@@ -261,7 +268,7 @@ describe('listIssues', () => {
     await expect(
       listIssues({
         client: mockClient,
-        repoDid: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+        repoDid: 'did:plc:owner',
       })
     ).rejects.toThrow('Must be authenticated');
   });
@@ -281,7 +288,7 @@ describe('getIssue', () => {
         cid: 'cid1',
         value: {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'Test Issue',
           body: 'Test Description',
           createdAt: '2024-01-01T00:00:00.000Z',
@@ -293,6 +300,7 @@ describe('getIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
           },
         },
@@ -325,6 +333,7 @@ describe('getIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
           },
         },
@@ -373,7 +382,7 @@ describe('updateIssue', () => {
         uri: 'at://did:plc:test123/sh.tangled.repo.issue/issue1',
         cid: 'old-cid',
         value: {
-          repo: 'at://did:plc:test123/sh.tangled.repo/my-repo',
+          repo: 'did:plc:test123',
           title: 'Old Title',
           body: 'Original body',
           createdAt: '2024-01-01T00:00:00.000Z',
@@ -392,6 +401,7 @@ describe('updateIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
             putRecord: mockPutRecord,
           },
@@ -426,7 +436,7 @@ describe('updateIssue', () => {
         uri: 'at://did:plc:test123/sh.tangled.repo.issue/issue1',
         cid: 'old-cid',
         value: {
-          repo: 'at://did:plc:test123/sh.tangled.repo/my-repo',
+          repo: 'did:plc:test123',
           title: 'Title',
           body: 'Old body',
           createdAt: '2024-01-01T00:00:00.000Z',
@@ -444,6 +454,7 @@ describe('updateIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
             putRecord: mockPutRecord,
           },
@@ -497,7 +508,7 @@ describe('closeIssue', () => {
         uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
         cid: 'cid1',
         value: {
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'Test Issue',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
@@ -515,6 +526,7 @@ describe('closeIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
             createRecord: mockCreateRecord,
           },
@@ -587,6 +599,7 @@ describe('getIssueState', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: vi.fn().mockResolvedValue({
               data: {
                 uri: 'at://did:plc:owner/sh.tangled.repo.issue.state/state1',
@@ -621,6 +634,7 @@ describe('getIssueState', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: vi
               .fn()
               .mockResolvedValueOnce({
@@ -665,6 +679,7 @@ describe('getIssueState', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: vi
               .fn()
               .mockResolvedValueOnce({
@@ -719,7 +734,7 @@ describe('reopenIssue', () => {
         uri: 'at://did:plc:owner/sh.tangled.repo.issue/issue1',
         cid: 'cid1',
         value: {
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'Test Issue',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
@@ -737,6 +752,7 @@ describe('reopenIssue', () => {
       com: {
         atproto: {
           repo: {
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
             getRecord: mockGetRecord,
             createRecord: mockCreateRecord,
           },
@@ -784,7 +800,7 @@ describe('resolveSequentialNumber', () => {
       '#3',
       'at://did:plc:owner/sh.tangled.repo.issue/issue3',
       mockClient,
-      'at://did:plc:owner/sh.tangled.repo/my-repo'
+      'did:plc:owner'
     );
     expect(result).toBe(3);
   });
@@ -807,7 +823,7 @@ describe('resolveSequentialNumber', () => {
           cid: 'cid1',
           value: {
             $type: 'sh.tangled.repo.issue',
-            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            repo: 'did:plc:owner',
             title: 'First',
             createdAt: '2024-01-01T00:00:00.000Z',
           },
@@ -819,7 +835,7 @@ describe('resolveSequentialNumber', () => {
           cid: 'cid2',
           value: {
             $type: 'sh.tangled.repo.issue',
-            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            repo: 'did:plc:owner',
             title: 'Second',
             createdAt: '2024-01-02T00:00:00.000Z',
           },
@@ -827,14 +843,21 @@ describe('resolveSequentialNumber', () => {
       });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await resolveSequentialNumber(
       'issue-b',
       'at://did:plc:owner/sh.tangled.repo.issue/issue-b',
       mockClient,
-      'at://did:plc:owner/sh.tangled.repo/my-repo'
+      'did:plc:owner'
     );
     expect(result).toBe(2);
   });
@@ -852,7 +875,7 @@ describe('resolveSequentialNumber', () => {
         cid: 'cid1',
         value: {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'First',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
@@ -860,14 +883,21 @@ describe('resolveSequentialNumber', () => {
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await resolveSequentialNumber(
       'nonexistent',
       'at://did:plc:owner/sh.tangled.repo.issue/nonexistent',
       mockClient,
-      'at://did:plc:owner/sh.tangled.repo/my-repo'
+      'did:plc:owner'
     );
     expect(result).toBeUndefined();
   });
@@ -896,7 +926,7 @@ describe('getCompleteIssueData', () => {
           cid: 'cid1',
           value: {
             $type: 'sh.tangled.repo.issue',
-            repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+            repo: 'did:plc:owner',
             title: 'Test Issue',
             body: 'Test body',
             createdAt: '2024-01-01T00:00:00.000Z',
@@ -912,14 +942,21 @@ describe('getCompleteIssueData', () => {
       });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await getCompleteIssueData(
       mockClient,
       'at://did:plc:owner/sh.tangled.repo.issue/issue1',
       '#1', // fast-path for number
-      'at://did:plc:owner/sh.tangled.repo/my-repo'
+      'did:plc:owner'
     );
 
     expect(result).toEqual({
@@ -941,7 +978,7 @@ describe('getCompleteIssueData', () => {
         cid: 'cid1',
         value: {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'Test Issue',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
@@ -949,14 +986,21 @@ describe('getCompleteIssueData', () => {
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await getCompleteIssueData(
       mockClient,
       'at://did:plc:owner/sh.tangled.repo.issue/issue1',
       '#2',
-      'at://did:plc:owner/sh.tangled.repo/my-repo',
+      'did:plc:owner',
       'closed'
     );
 
@@ -974,7 +1018,7 @@ describe('getCompleteIssueData', () => {
         cid: 'cid1',
         value: {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:owner/sh.tangled.repo/my-repo',
+          repo: 'did:plc:owner',
           title: 'No body issue',
           createdAt: '2024-01-01T00:00:00.000Z',
         },
@@ -982,14 +1026,21 @@ describe('getCompleteIssueData', () => {
     });
 
     vi.mocked(mockClient.getAgent).mockReturnValue({
-      com: { atproto: { repo: { getRecord: mockGetRecord } } },
+      com: {
+        atproto: {
+          repo: {
+            getRecord: mockGetRecord,
+            listRecords: vi.fn().mockResolvedValue({ data: { records: [] } }),
+          },
+        },
+      },
     } as never);
 
     const result = await getCompleteIssueData(
       mockClient,
       'at://did:plc:owner/sh.tangled.repo.issue/issue1',
       '#1',
-      'at://did:plc:owner/sh.tangled.repo/my-repo'
+      'did:plc:owner'
     );
 
     expect(result.body).toBeUndefined();

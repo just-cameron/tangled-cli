@@ -49,9 +49,7 @@ describe('issue create command', () => {
     });
 
     // Mock AT-URI builder
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue(
-      'at://did:plc:abc123/sh.tangled.repo/test-repo'
-    );
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
 
     // Mock body input
     vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
@@ -68,7 +66,7 @@ describe('issue create command', () => {
     it('should create issue with body text', async () => {
       const mockIssue: IssueWithMetadata = {
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repo: 'did:plc:abc123',
         title: 'Test Issue',
         body: 'Test body',
         createdAt: new Date().toISOString(),
@@ -86,7 +84,7 @@ describe('issue create command', () => {
 
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'did:plc:abc123',
         title: 'Test Issue',
         body: 'Test body',
       });
@@ -100,7 +98,7 @@ describe('issue create command', () => {
     it('should create issue with body from file', async () => {
       const mockIssue: IssueWithMetadata = {
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repo: 'did:plc:abc123',
         title: 'Test Issue',
         body: 'Body from file',
         createdAt: new Date().toISOString(),
@@ -126,7 +124,7 @@ describe('issue create command', () => {
       expect(bodyInput.readBodyInput).toHaveBeenCalledWith(undefined, '/tmp/body.txt');
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'did:plc:abc123',
         title: 'Test Issue',
         body: 'Body from file',
       });
@@ -137,7 +135,7 @@ describe('issue create command', () => {
     it('should create issue without body', async () => {
       const mockIssue: IssueWithMetadata = {
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repo: 'did:plc:abc123',
         title: 'Test Issue',
         createdAt: new Date().toISOString(),
         uri: 'at://did:plc:abc123/sh.tangled.repo.issue/test123',
@@ -154,7 +152,7 @@ describe('issue create command', () => {
 
       expect(issuesApi.createIssue).toHaveBeenCalledWith({
         client: mockClient,
-        repoDid: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+        repoDid: 'did:plc:abc123',
         title: 'Test Issue',
         body: undefined,
       });
@@ -261,7 +259,7 @@ describe('issue create command', () => {
   describe('JSON output', () => {
     const mockIssue: IssueWithMetadata = {
       $type: 'sh.tangled.repo.issue',
-      repo: 'at://did:plc:abc123/sh.tangled.repo/test-repo',
+      repo: 'did:plc:abc123',
       title: 'Test Issue',
       body: 'Test body',
       createdAt: '2024-01-01T00:00:00.000Z',
@@ -341,7 +339,7 @@ describe('issue list command', () => {
     });
 
     // Mock AT-URI builder
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
   });
 
   afterEach(() => {
@@ -353,7 +351,7 @@ describe('issue list command', () => {
       const mockIssues: IssueWithMetadata[] = [
         {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+          repo: 'did:plc:abc123',
           title: 'First Issue',
           createdAt: new Date('2024-01-01').toISOString(),
           uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
@@ -362,7 +360,7 @@ describe('issue list command', () => {
         },
         {
           $type: 'sh.tangled.repo.issue',
-          repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+          repo: 'did:plc:abc123',
           title: 'Second Issue',
           createdAt: new Date('2024-01-02').toISOString(),
           uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue2',
@@ -382,7 +380,8 @@ describe('issue list command', () => {
 
       expect(issuesApi.listIssues).toHaveBeenCalledWith({
         client: mockClient,
-        repoDid: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repoDid: 'did:plc:abc123',
+        repoAliases: ['test.bsky.social', 'test-repo'],
         limit: 50,
       });
 
@@ -402,7 +401,8 @@ describe('issue list command', () => {
 
       expect(issuesApi.listIssues).toHaveBeenCalledWith({
         client: mockClient,
-        repoDid: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repoDid: 'did:plc:abc123',
+        repoAliases: ['test.bsky.social', 'test-repo'],
         limit: 25,
       });
     });
@@ -503,7 +503,7 @@ describe('issue list command', () => {
     const mockIssues: IssueWithMetadata[] = [
       {
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repo: 'did:plc:abc123',
         title: 'First Issue',
         body: 'First body',
         createdAt: new Date('2024-01-01').toISOString(),
@@ -513,7 +513,7 @@ describe('issue list command', () => {
       },
       {
         $type: 'sh.tangled.repo.issue',
-        repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+        repo: 'did:plc:abc123',
         title: 'Second Issue',
         createdAt: new Date('2024-01-02').toISOString(),
         uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue2',
@@ -574,7 +574,7 @@ describe('issue view command', () => {
 
   const mockIssue: IssueWithMetadata = {
     $type: 'sh.tangled.repo.issue',
-    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    repo: 'did:plc:abc123',
     title: 'Test Issue',
     body: 'Issue body',
     createdAt: new Date('2024-01-01').toISOString(),
@@ -604,7 +604,7 @@ describe('issue view command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
 
     vi.mocked(authHelpers.requireAuth).mockResolvedValue({
       did: 'did:plc:abc123',
@@ -639,7 +639,7 @@ describe('issue view command', () => {
       mockClient,
       mockIssue.uri,
       '#1',
-      'at://did:plc:abc123/sh.tangled.repo/xyz789'
+      'did:plc:abc123'
     );
     expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue #1 [OPEN]');
     expect(consoleLogSpy).toHaveBeenCalledWith('Title: Test Issue');
@@ -666,7 +666,7 @@ describe('issue view command', () => {
       mockClient,
       'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
       'issue1',
-      'at://did:plc:abc123/sh.tangled.repo/xyz789'
+      'did:plc:abc123'
     );
     expect(consoleLogSpy).toHaveBeenCalledWith('\nIssue issue1 [CLOSED]');
   });
@@ -801,7 +801,7 @@ describe('issue edit command', () => {
 
   const mockIssue: IssueWithMetadata = {
     $type: 'sh.tangled.repo.issue',
-    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    repo: 'did:plc:abc123',
     title: 'Original Title',
     createdAt: new Date('2024-01-01').toISOString(),
     uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
@@ -830,7 +830,7 @@ describe('issue edit command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
 
     vi.mocked(bodyInput.readBodyInput).mockResolvedValue(undefined);
     vi.mocked(authHelpers.requireAuth).mockResolvedValue({
@@ -975,7 +975,7 @@ describe('issue close command', () => {
 
   const mockIssue: IssueWithMetadata = {
     $type: 'sh.tangled.repo.issue',
-    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    repo: 'did:plc:abc123',
     title: 'Test Issue',
     createdAt: new Date('2024-01-01').toISOString(),
     uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
@@ -1004,7 +1004,7 @@ describe('issue close command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
     vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
       number: 1,
       title: mockIssue.title,
@@ -1092,7 +1092,7 @@ describe('issue reopen command', () => {
 
   const mockIssue: IssueWithMetadata = {
     $type: 'sh.tangled.repo.issue',
-    repo: 'at://did:plc:abc123/sh.tangled.repo/xyz789',
+    repo: 'did:plc:abc123',
     title: 'Test Issue',
     createdAt: new Date('2024-01-01').toISOString(),
     uri: 'at://did:plc:abc123/sh.tangled.repo.issue/issue1',
@@ -1121,7 +1121,7 @@ describe('issue reopen command', () => {
       protocol: 'ssh',
     });
 
-    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('at://did:plc:abc123/sh.tangled.repo/xyz789');
+    vi.mocked(atUri.resolveRepoDid).mockResolvedValue('did:plc:abc123');
     vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
       number: 1,
       title: mockIssue.title,

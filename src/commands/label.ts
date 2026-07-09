@@ -8,7 +8,7 @@ import {
   listLabelDefinitions,
 } from '../lib/labels-api.js';
 import { listPulls } from '../lib/pulls-api.js';
-import { buildRepoAtUri } from '../utils/at-uri.js';
+import { resolveRepoDid } from '../utils/at-uri.js';
 import { ensureAuthenticated, requireAuth } from '../utils/auth-helpers.js';
 import { outputJson } from '../utils/formatting.js';
 
@@ -21,7 +21,7 @@ async function resolveSubjectUri(
   kind: SubjectKind,
   input: string,
   client: ReturnType<typeof createApiClient>,
-  repoAtUri: string,
+  repoDid: string,
   repoAliases: string[] = []
 ): Promise<{ uri: string; displayId: string }> {
   const normalized = input.startsWith('#') ? input.slice(1) : input;
@@ -33,7 +33,7 @@ async function resolveSubjectUri(
     }
 
     if (kind === 'issue') {
-      const { issues } = await listIssues({ client, repoAtUri, repoAliases, limit: 100 });
+      const { issues } = await listIssues({ client, repoDid, repoAliases, limit: 100 });
       const sorted = issues.sort(
         (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       );
@@ -42,7 +42,7 @@ async function resolveSubjectUri(
       return { uri: issue.uri, displayId: `#${num}` };
     }
 
-    const { pulls } = await listPulls({ client, repoAtUri, limit: 100 });
+    const { pulls } = await listPulls({ client, repoDid, limit: 100 });
     const sorted = pulls.sort(
       (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
@@ -87,12 +87,12 @@ async function withRepoContext() {
     console.error('✗ Not in a Tangled repository');
     process.exit(1);
   }
-  const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
-  // Stable DID remotes and older issue records may store the bare repo DID.
+  const repoDid = await resolveRepoDid(context.owner, context.name, client);
+  // Stable DID remotes and older issue records may store aliases in `.repo`.
   const repoAliases = Array.from(
     new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
   );
-  return { client, context, repoAtUri, repoAliases };
+  return { client, context, repoDid, repoAliases };
 }
 
 export function createLabelCommand(): Command {
@@ -144,12 +144,12 @@ export function createLabelCommand(): Command {
     .action(async (kindArg: string, id: string, options: { json?: boolean }) => {
       try {
         const kind = parseKind(kindArg);
-        const { client, repoAtUri, repoAliases } = await withRepoContext();
+        const { client, repoDid, repoAliases } = await withRepoContext();
         const { uri, displayId } = await resolveSubjectUri(
           kind,
           id,
           client,
-          repoAtUri,
+          repoDid,
           repoAliases
         );
         const labels = await getSubjectLabels(client, uri);
@@ -186,12 +186,12 @@ export function createLabelCommand(): Command {
     .action(async (kindArg: string, id: string, name: string, options: { json?: boolean }) => {
       try {
         const kind = parseKind(kindArg);
-        const { client, context, repoAtUri, repoAliases } = await withRepoContext();
+        const { client, context, repoDid, repoAliases } = await withRepoContext();
         const { uri, displayId } = await resolveSubjectUri(
           kind,
           id,
           client,
-          repoAtUri,
+          repoDid,
           repoAliases
         );
 
@@ -231,12 +231,12 @@ export function createLabelCommand(): Command {
     .action(async (kindArg: string, id: string, name: string, options: { json?: boolean }) => {
       try {
         const kind = parseKind(kindArg);
-        const { client, context, repoAtUri, repoAliases } = await withRepoContext();
+        const { client, context, repoDid, repoAliases } = await withRepoContext();
         const { uri, displayId } = await resolveSubjectUri(
           kind,
           id,
           client,
-          repoAtUri,
+          repoDid,
           repoAliases
         );
 
