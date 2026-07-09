@@ -198,23 +198,26 @@ export async function listIssues(params: ListIssuesParams): Promise<{
 
     let issues = await Promise.all(issuePromises);
 
-    // Fallback: some Tangled clients store a bare repo DID in `.repo` instead of
-    // the sh.tangled.repo AT-URI, which constellation cannot backlink. Scan the
-    // authenticated user's PDS and match aliases.
-    if (issues.length === 0) {
-      const local = await client.getAgent().com.atproto.repo.listRecords({
-        repo: session.did,
-        collection: 'sh.tangled.repo.issue',
-        limit: Math.max(limit, 100),
+    // Always merge a local PDS scan: some Tangled clients store a bare repo DID
+    // in `.repo` instead of the sh.tangled.repo AT-URI, which constellation
+    // cannot backlink. Without this merge, a single correctly-linked issue
+    // hides every bare-DID sibling from `tang issue list`.
+    const local = await client.getAgent().com.atproto.repo.listRecords({
+      repo: session.did,
+      collection: 'sh.tangled.repo.issue',
+      limit: Math.max(limit, 100),
+    });
+    const seen = new Set(issues.map((issue) => issue.uri));
+    for (const record of local.data.records) {
+      if (!matchesRepo((record.value as IssueRecord).repo)) continue;
+      if (seen.has(record.uri)) continue;
+      issues.push({
+        ...(record.value as IssueRecord),
+        uri: record.uri,
+        cid: record.cid as string,
+        author: session.did,
       });
-      issues = local.data.records
-        .filter((record) => matchesRepo((record.value as IssueRecord).repo))
-        .map((record) => ({
-          ...(record.value as IssueRecord),
-          uri: record.uri,
-          cid: record.cid as string,
-          author: session.did,
-        }));
+      seen.add(record.uri);
     }
 
     return {
