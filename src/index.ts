@@ -7,6 +7,7 @@ import { createAuthCommand } from './commands/auth.js';
 import { createConfigCommand } from './commands/config.js';
 import { createContextCommand } from './commands/context.js';
 import { createIssueCommand } from './commands/issue.js';
+import { createLabelCommand } from './commands/label.js';
 import { createPrCommand } from './commands/pr.js';
 import { createSshKeyCommand } from './commands/ssh-key.js';
 
@@ -29,5 +30,6 @@ program.addCommand(createConfigCommand());
 program.addCommand(createContextCommand());
 program.addCommand(createIssueCommand());
 program.addCommand(createPrCommand());
+program.addCommand(createLabelCommand());
 
 program.parse(process.argv);

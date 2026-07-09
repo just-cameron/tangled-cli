@@ -37,7 +37,8 @@ function extractRkey(uri: string): string {
 async function resolveIssueUri(
   input: string,
   client: TangledApiClient,
-  repoAtUri: string
+  repoAtUri: string,
+  repoAliases: string[] = []
 ): Promise<{ uri: string; displayId: string }> {
   // Strip # prefix if present
   const normalized = input.startsWith('#') ? input.slice(1) : input;
@@ -54,6 +55,7 @@ async function resolveIssueUri(
     const { issues } = await listIssues({
       client,
       repoAtUri,
+      repoAliases,
       limit: 100, // Adjust if needed for large repos
     });
 
@@ -123,9 +125,12 @@ function createViewCommand(): Command {
 
         // 3. Build repo AT-URI
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        const repoAliases = Array.from(
+          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+        );
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
 
         // 5. Fetch complete issue data (record, sequential number, state)
         const issueData = await getCompleteIssueData(client, issueUri, displayId, repoAtUri);
@@ -196,9 +201,12 @@ function createEditCommand(): Command {
 
           // 4. Build repo AT-URI
           const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        const repoAliases = Array.from(
+          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+        );
 
           // 5. Resolve issue ID to URI
-          const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
+          const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
 
           // 6. Handle body input
           const body = await readBodyInput(options.body, options.bodyFile);
@@ -276,9 +284,12 @@ function createCloseCommand(): Command {
 
         // 3. Build repo AT-URI
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        const repoAliases = Array.from(
+          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+        );
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
 
         // 5. Fetch complete issue data (state will be 'closed' after operation)
         const issueData = await getCompleteIssueData(
@@ -333,9 +344,12 @@ function createReopenCommand(): Command {
 
         // 3. Build repo AT-URI
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        const repoAliases = Array.from(
+          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+        );
 
         // 4. Resolve issue ID to URI
-        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri);
+        const { uri: issueUri, displayId } = await resolveIssueUri(issueId, client, repoAtUri, repoAliases);
 
         // 5. Fetch complete issue data (state will be 'open' after operation)
         const issueData = await getCompleteIssueData(
@@ -497,6 +511,9 @@ function createListCommand(): Command {
 
         // 3. Build repo AT-URI
         const repoAtUri = await buildRepoAtUri(context.owner, context.name, client);
+        const repoAliases = Array.from(
+          new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
+        );
 
         // 4. Fetch issues
         const limit = Number.parseInt(options.limit, 10);
@@ -508,6 +525,7 @@ function createListCommand(): Command {
         const { issues } = await listIssues({
           client,
           repoAtUri,
+          repoAliases,
           limit,
         });
 

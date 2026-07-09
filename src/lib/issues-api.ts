@@ -43,6 +43,8 @@ export interface CreateIssueParams {
 export interface ListIssuesParams {
   client: TangledApiClient;
   repoAtUri: string;
+  /** Optional bare owner/repo DID aliases that older issues may store in `.repo` */
+  repoAliases?: string[];
   limit?: number;
   cursor?: string;
 }
@@ -158,10 +160,16 @@ export async function listIssues(params: ListIssuesParams): Promise<{
   issues: IssueWithMetadata[];
   cursor?: string;
 }> {
-  const { client, repoAtUri, limit = 50, cursor } = params;
+  const { client, repoAtUri, repoAliases = [], limit = 50, cursor } = params;
 
   // Validate authentication
-  await requireAuth(client);
+  const session = await requireAuth(client);
+
+  const matchesRepo = (repoField: string | undefined): boolean => {
+    if (!repoField) return false;
+    if (repoField === repoAtUri) return true;
+    return repoAliases.some((alias) => alias.length > 0 && repoField === alias);
+  };
 
   try {
     // Query constellation for all issues that reference this repo across all PDSs
@@ -188,7 +196,26 @@ export async function listIssues(params: ListIssuesParams): Promise<{
       };
     });
 
-    const issues = await Promise.all(issuePromises);
+    let issues = await Promise.all(issuePromises);
+
+    // Fallback: some Tangled clients store a bare repo DID in `.repo` instead of
+    // the sh.tangled.repo AT-URI, which constellation cannot backlink. Scan the
+    // authenticated user's PDS and match aliases.
+    if (issues.length === 0) {
+      const local = await client.getAgent().com.atproto.repo.listRecords({
+        repo: session.did,
+        collection: 'sh.tangled.repo.issue',
+        limit: Math.max(limit, 100),
+      });
+      issues = local.data.records
+        .filter((record) => matchesRepo((record.value as IssueRecord).repo))
+        .map((record) => ({
+          ...(record.value as IssueRecord),
+          uri: record.uri,
+          cid: record.cid as string,
+          author: session.did,
+        }));
+    }
 
     return {
       issues,
