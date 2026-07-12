@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AtpSessionData } from '@atproto/api';
 import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node';
-import { AsyncEntry } from '@napi-rs/keyring';
+import { deleteKeychainSecret, loadKeychainSecret, saveKeychainSecret } from './keychain.js';
 
 const SERVICE_NAME = 'tangled-cli';
 const OAUTH_SESSION_SERVICE_NAME = 'tangled-cli-oauth-session';
@@ -27,13 +27,11 @@ export interface SessionMetadata {
 
 async function saveKeychainJson(service: string, accountId: string, value: unknown): Promise<void> {
   const serialized = JSON.stringify(value);
-  const entry = new AsyncEntry(service, accountId);
-  await entry.setPassword(serialized);
+  await saveKeychainSecret(service, accountId, serialized);
 }
 
 async function loadKeychainJson<T>(service: string, accountId: string): Promise<T | null> {
-  const entry = new AsyncEntry(service, accountId);
-  const serialized = await entry.getPassword();
+  const serialized = await loadKeychainSecret(service, accountId);
   if (!serialized) return null;
   return JSON.parse(serialized) as T;
 }
@@ -93,8 +91,7 @@ export async function loadOAuthSession(sub: string): Promise<NodeSavedSession | 
 
 export async function deleteOAuthSession(sub: string): Promise<boolean> {
   try {
-    const entry = new AsyncEntry(OAUTH_SESSION_SERVICE_NAME, sub);
-    return await entry.deleteCredential();
+    return await deleteKeychainSecret(OAUTH_SESSION_SERVICE_NAME, sub);
   } catch (error) {
     throw new Error(
       `Failed to delete OAuth session from keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
@@ -111,8 +108,7 @@ export async function loadOAuthState(key: string): Promise<NodeSavedState | null
 }
 
 export async function deleteOAuthState(key: string): Promise<boolean> {
-  const entry = new AsyncEntry(OAUTH_STATE_SERVICE_NAME, key);
-  return await entry.deleteCredential();
+  return await deleteKeychainSecret(OAUTH_STATE_SERVICE_NAME, key);
 }
 
 /**
@@ -121,8 +117,7 @@ export async function deleteOAuthState(key: string): Promise<boolean> {
  */
 export async function deleteSession(accountId: string): Promise<boolean> {
   try {
-    const entry = new AsyncEntry(SERVICE_NAME, accountId);
-    return await entry.deleteCredential();
+    return await deleteKeychainSecret(SERVICE_NAME, accountId);
   } catch (error) {
     throw new Error(
       `Failed to delete session from keychain: ${error instanceof Error ? error.message : 'Unknown error'}`

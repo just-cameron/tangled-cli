@@ -10,28 +10,23 @@ import {
 } from '../../src/lib/session.js';
 import { mockSessionData, mockSessionData2, mockSessionMetadata } from '../helpers/mock-data.js';
 
-// Mock @napi-rs/keyring
 const mockKeyringStorage = new Map<string, string>();
 
-vi.mock('@napi-rs/keyring', () => {
-  return {
-    AsyncEntry: vi.fn().mockImplementation((service: string, account: string) => {
-      const key = `${service}:${account}`;
-
-      return {
-        setPassword: vi.fn().mockImplementation(async (password: string) => {
-          mockKeyringStorage.set(key, password);
-        }),
-        getPassword: vi.fn().mockImplementation(async () => {
-          return mockKeyringStorage.get(key) || null;
-        }),
-        deleteCredential: vi.fn().mockImplementation(async () => {
-          return mockKeyringStorage.delete(key);
-        }),
-      };
-    }),
-  };
-});
+vi.mock('../../src/lib/keychain.js', () => ({
+  saveKeychainSecret: vi.fn(
+    async (service: string, account: string, password: string): Promise<void> => {
+      mockKeyringStorage.set(`${service}:${account}`, password);
+    }
+  ),
+  loadKeychainSecret: vi.fn(
+    async (service: string, account: string): Promise<string | null> =>
+      mockKeyringStorage.get(`${service}:${account}`) ?? null
+  ),
+  deleteKeychainSecret: vi.fn(
+    async (service: string, account: string): Promise<boolean> =>
+      mockKeyringStorage.delete(`${service}:${account}`)
+  ),
+}));
 
 // Mock node:fs/promises for metadata file storage
 const mockFileStorage = new Map<string, string>();
