@@ -535,15 +535,14 @@ describe('issue list command', () => {
       await command.parseAsync(['node', 'test', 'list', '--json']);
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
-      expect(Array.isArray(jsonOutput)).toBe(true);
-      expect(jsonOutput).toHaveLength(2);
-      expect(jsonOutput[0]).toMatchObject({
+      expect(jsonOutput.items).toHaveLength(2);
+      expect(jsonOutput.items[0]).toMatchObject({
         number: 1,
         title: 'First Issue',
         state: 'open',
         author: 'did:plc:abc123',
       });
-      expect(jsonOutput[1]).toMatchObject({ number: 2, title: 'Second Issue' });
+      expect(jsonOutput.items[1]).toMatchObject({ number: 2, title: 'Second Issue' });
     });
 
     it('should output filtered JSON when --json with fields is passed', async () => {
@@ -551,9 +550,9 @@ describe('issue list command', () => {
       await command.parseAsync(['node', 'test', 'list', '--json', 'number,title,state']);
 
       const jsonOutput = JSON.parse(consoleLogSpy.mock.calls[0][0] as string);
-      expect(jsonOutput[0]).toEqual({ number: 1, title: 'First Issue', state: 'open' });
-      expect(jsonOutput[0]).not.toHaveProperty('author');
-      expect(jsonOutput[0]).not.toHaveProperty('uri');
+      expect(jsonOutput.items[0]).toEqual({ number: 1, title: 'First Issue', state: 'open' });
+      expect(jsonOutput.items[0]).not.toHaveProperty('author');
+      expect(jsonOutput.items[0]).not.toHaveProperty('uri');
     });
 
     it('should output empty JSON array when no issues exist', async () => {
@@ -562,7 +561,10 @@ describe('issue list command', () => {
       const command = createIssueCommand();
       await command.parseAsync(['node', 'test', 'list', '--json']);
 
-      expect(consoleLogSpy).toHaveBeenCalledWith('[]');
+      expect(JSON.parse(consoleLogSpy.mock.calls[0][0] as string)).toMatchObject({
+        items: [],
+        count: 0,
+      });
     });
   });
 });
@@ -648,6 +650,10 @@ describe('issue view command', () => {
   });
 
   it('should view issue by rkey', async () => {
+    vi.mocked(issuesApi.listIssues).mockResolvedValue({
+      issues: [mockIssue],
+      cursor: undefined,
+    });
     vi.mocked(issuesApi.getCompleteIssueData).mockResolvedValue({
       number: undefined,
       title: mockIssue.title,

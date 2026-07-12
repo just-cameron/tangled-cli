@@ -3,6 +3,7 @@ import { parseAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import type { TangledApiClient } from './api-client.js';
 import { getBacklinks } from './constellation.js';
+import { getRecordFromDid } from './public-records.js';
 
 /**
  * A single revision of a pull request: the lexicon's `#round`. Newer rounds
@@ -95,7 +96,9 @@ export interface DeletePullParams {
  * Canonical JSON shape for a single pull request, used by all pr commands.
  */
 export interface PullData {
+  id?: string;
   number: number | undefined;
+  numberKind?: 'computed' | 'unknown';
   title: string;
   body?: string;
   state: 'open' | 'closed' | 'merged';
@@ -209,11 +212,7 @@ export async function listPulls(params: ListPullsParams): Promise<{
 
     // Fetch each pull request record individually
     const pullPromises = backlinks.records.map(async ({ did, collection, rkey }) => {
-      const response = await client.getAgent().com.atproto.repo.getRecord({
-        repo: did,
-        collection,
-        rkey,
-      });
+      const response = await getRecordFromDid(client, did, collection, rkey);
       return {
         ...(response.data.value as PullRecord),
         uri: response.data.uri,
@@ -249,11 +248,7 @@ export async function getPull(params: GetPullParams): Promise<PullWithMetadata> 
   const { did, collection, rkey } = parsePullUri(pullUri);
 
   try {
-    const response = await client.getAgent().com.atproto.repo.getRecord({
-      repo: did,
-      collection,
-      rkey,
-    });
+    const response = await getRecordFromDid(client, did, collection, rkey);
 
     const record = response.data.value as PullRecord;
 
@@ -326,11 +321,7 @@ export async function getPullState(
 
     // Fetch each state record in parallel
     const statePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
-      const response = await client.getAgent().com.atproto.repo.getRecord({
-        repo: did,
-        collection,
-        rkey,
-      });
+      const response = await getRecordFromDid(client, did, collection, rkey);
       return {
         rkey,
         value: response.data.value as {
@@ -378,10 +369,17 @@ export async function resolveSequentialPullNumber(
   const match = displayId.match(/^#(\d+)$/);
   if (match) return Number.parseInt(match[1], 10);
 
-  const { pulls } = await listPulls({ client, repoDid, limit: 100 });
-  const sorted = pulls.sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+  const byUri = new Map<string, PullWithMetadata>();
+  let cursor: string | undefined;
+  do {
+    const page = await listPulls({ client, repoDid, limit: 100, cursor });
+    for (const pull of page.pulls) byUri.set(pull.uri, pull);
+    cursor = page.cursor;
+  } while (cursor);
+  const sorted = [...byUri.values()].sort((a, b) => {
+    const byTime = a.createdAt.localeCompare(b.createdAt);
+    return byTime !== 0 ? byTime : a.uri.localeCompare(b.uri);
+  });
   const idx = sorted.findIndex((p) => p.uri === pullUri);
   return idx >= 0 ? idx + 1 : undefined;
 }
@@ -402,7 +400,9 @@ export async function getCompletePullData(
     getPullState({ client, pullUri }),
   ]);
   return {
+    id: pull.uri.split('/').pop() ?? pull.uri,
     number,
+    numberKind: number === undefined ? 'unknown' : 'computed',
     title: pull.title,
     body: pull.body,
     state,

@@ -95,7 +95,7 @@ describe('Auth Commands', () => {
       mockClient.logout.mockResolvedValue(undefined);
 
       const auth = createAuthCommand();
-      await auth.parseAsync(['node', 'test', 'logout']);
+      await auth.parseAsync(['node', 'test', 'logout', '--yes']);
 
       expect(mockClient.logout).toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith(expect.stringContaining('Logged out'));
@@ -108,7 +108,9 @@ describe('Auth Commands', () => {
       vi.mocked(sessionModule.getCurrentSessionMetadata).mockResolvedValue(null);
 
       const auth = createAuthCommand();
-      await expect(auth.parseAsync(['node', 'test', 'logout'])).rejects.toThrow('process.exit');
+      await expect(auth.parseAsync(['node', 'test', 'logout', '--yes'])).rejects.toThrow(
+        'process.exit'
+      );
 
       expect(mockClient.logout).not.toHaveBeenCalled();
       expect(consoleLogSpy).toHaveBeenCalledWith('Not currently logged in');
@@ -120,7 +122,9 @@ describe('Auth Commands', () => {
       mockClient.logout.mockRejectedValue(new Error('Logout failed'));
 
       const auth = createAuthCommand();
-      await expect(auth.parseAsync(['node', 'test', 'logout'])).rejects.toThrow('process.exit(1)');
+      await expect(auth.parseAsync(['node', 'test', 'logout', '--yes'])).rejects.toThrow(
+        'process.exit(1)'
+      );
 
       expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining('Logout failed'));
       expect(processExitSpy).toHaveBeenCalledWith(1);

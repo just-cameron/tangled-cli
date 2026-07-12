@@ -74,6 +74,16 @@ download_lexicon "pipeline/pipeline.json"
 download_lexicon "pipeline/status.json"
 download_lexicon "pipeline/cancelPipeline.json"
 
+# Current Spindle CI XRPC lexicons. The sh.tangled.pipeline namespace above is
+# retained only for compatibility with older records; new commands use these.
+download_lexicon "ci/cancelPipeline.json"
+download_lexicon "ci/getPipeline.json"
+download_lexicon "ci/pipeline.json"
+download_lexicon "ci/queryPipelines.json"
+download_lexicon "ci/subscribePipelineLogs.json"
+download_lexicon "ci/trigger.json"
+download_lexicon "ci/triggerPipeline.json"
+
 # Top-level lexicons
 download_lexicon "owner.json"
 download_lexicon "publicKey.json"

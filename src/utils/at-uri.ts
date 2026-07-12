@@ -1,4 +1,5 @@
 import type { TangledApiClient } from '../lib/api-client.js';
+import { listAllRecordsFromDid } from '../lib/public-records.js';
 
 /**
  * Parse an AT-URI into its components
@@ -99,13 +100,9 @@ export async function resolveRepoDid(
   const did = isDid ? ownerDidOrHandle : await resolveHandleToDid(ownerDidOrHandle, client);
 
   try {
-    const response = await client.getAgent().com.atproto.repo.listRecords({
-      repo: did,
-      collection: 'sh.tangled.repo',
-      limit: 100, // Reasonable limit for most users
-    });
+    const records = await listAllRecordsFromDid(client, did, 'sh.tangled.repo');
 
-    const repoRecord = response.data.records.find((record) => {
+    const repoRecord = records.find((record) => {
       const recordData = record.value as { name?: string };
       if (recordData.name === repoName) return true;
       const rkey = record.uri.split('/').pop();

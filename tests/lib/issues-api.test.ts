@@ -428,6 +428,10 @@ describe('updateIssue', () => {
       }),
       swapRecord: 'old-cid',
     });
+    const written = mockPutRecord.mock.calls[0]?.[0].record;
+    expect(written).not.toHaveProperty('uri');
+    expect(written).not.toHaveProperty('cid');
+    expect(written).not.toHaveProperty('author');
   });
 
   it('should update issue body', async () => {
@@ -960,7 +964,9 @@ describe('getCompleteIssueData', () => {
     );
 
     expect(result).toEqual({
+      id: 'issue1',
       number: 1,
+      numberKind: 'computed',
       title: 'Test Issue',
       body: 'Test body',
       state: 'closed',

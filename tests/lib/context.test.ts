@@ -69,6 +69,8 @@ describe('Context Resolution', () => {
           remoteName: 'origin',
           remoteUrl: 'git@tangled.org:did:plc:b2mcbcamkwyznc5fkplwlxbf/tangled-cli.git',
           protocol: 'ssh',
+          publicUrl: 'https://tangled.org/did:plc:b2mcbcamkwyznc5fkplwlxbf/tangled-cli',
+          selectionSource: 'git',
         },
       ]);
     });
@@ -95,6 +97,8 @@ describe('Context Resolution', () => {
           remoteName: 'origin',
           remoteUrl: 'https://tangled.org/alice.bsky.social/tangled-cli',
           protocol: 'https',
+          publicUrl: 'https://tangled.org/alice.bsky.social/tangled-cli',
+          selectionSource: 'git',
         },
       ]);
     });
@@ -172,6 +176,8 @@ describe('Context Resolution', () => {
         remoteName: 'origin',
         remoteUrl: 'git@tangled.org:did:plc:abc123/repo.git',
         protocol: 'ssh',
+        publicUrl: 'https://tangled.org/did:plc:abc123/repo',
+        selectionSource: 'git',
       };
 
       const result = await promptForRemote([remote]);
@@ -263,6 +269,8 @@ describe('Context Resolution', () => {
         remoteName: 'origin',
         remoteUrl: 'git@tangled.org:did:plc:abc123/repo.git',
         protocol: 'ssh',
+        publicUrl: 'https://tangled.org/did:plc:abc123/repo',
+        selectionSource: 'git',
       });
     });
 

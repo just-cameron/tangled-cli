@@ -3,6 +3,7 @@ import { gzip as gzipCallback } from 'node:zlib';
 import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
 import { simpleGit } from 'simple-git';
+import { listAllPulls, resolveEntityAddress, sortPulls } from '../lib/addressing.js';
 import { createApiClient } from '../lib/api-client.js';
 import { getCurrentRepoContext } from '../lib/context.js';
 import type { PullData } from '../lib/pulls-api.js';
@@ -13,7 +14,8 @@ import {
   getPullState,
   listPulls,
 } from '../lib/pulls-api.js';
-import { resolveRepoDid } from '../utils/at-uri.js';
+import { resolveRepositoryDid } from '../lib/repository.js';
+import { confirmationGranted, inputAllowed, requestedFields, wantsJson } from '../lib/runtime.js';
 import { ensureAuthenticated } from '../utils/auth-helpers.js';
 import { readBodyInput } from '../utils/body-input.js';
 import { formatDate, outputJson } from '../utils/formatting.js';
@@ -53,66 +55,11 @@ async function resolvePullUri(
   client: ReturnType<typeof createApiClient>,
   repoDid: string
 ): Promise<{ uri: string; displayId: string }> {
-  // Strip # prefix if present
-  const normalized = input.startsWith('#') ? input.slice(1) : input;
-
-  // Check if numeric
-  if (/^\d+$/.test(normalized)) {
-    const num = Number.parseInt(normalized, 10);
-
-    if (num < 1) {
-      throw new Error('Pull request number must be greater than 0');
-    }
-
-    const { pulls } = await listPulls({
-      client,
-      repoDid,
-      limit: 100,
-    });
-
-    // Sort by creation time (oldest first)
-    const sorted = pulls.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-
-    const pull = sorted[num - 1];
-    if (!pull) {
-      throw new Error(`Pull request #${num} not found`);
-    }
-
-    return {
-      uri: pull.uri,
-      displayId: `#${num}`,
-    };
-  }
-
-  // Accept a full pull AT-URI directly.
-  if (normalized.startsWith('at://')) {
-    return {
-      uri: normalized,
-      displayId: extractRkey(normalized),
-    };
-  }
-
-  // Treat as rkey or unique rkey prefix. Pulls may be authored by a different DID,
-  // so do not build at://<current-session-did>/... here; find the matching record
-  // from the repository's pull backlinks instead.
-  if (!/^[a-zA-Z0-9._-]+$/.test(normalized)) {
-    throw new Error(`Invalid pull request identifier: ${input}`);
-  }
-
-  const { pulls } = await listPulls({ client, repoDid, limit: 100 });
-  const matches = pulls.filter((pull) => extractRkey(pull.uri).startsWith(normalized));
-  if (matches.length === 0) {
-    throw new Error(`Pull request '${input}' not found`);
-  }
-  if (matches.length > 1) {
-    throw new Error(`Pull request identifier '${input}' is ambiguous`);
-  }
-
+  const resolution = await resolveEntityAddress({ kind: 'pull', input, client, repoDid });
   return {
-    uri: matches[0].uri,
-    displayId: extractRkey(matches[0].uri),
+    uri: resolution.uri,
+    displayId:
+      resolution.computedNumber !== undefined ? `#${resolution.computedNumber}` : resolution.rkey,
   };
 }
 
@@ -176,10 +123,16 @@ function createCreateCommand(): Command {
             const behindCount = behindLog.total;
             if (behindCount > 0) {
               const msg = `Head branch '${headBranch}' is ${behindCount} commit(s) behind '${baseBranch}'.`;
-              if (options.json !== undefined) {
-                // Non-interactive: fail with error
-                console.error(`✗ ${msg} Merge base into head first, or use --skip-behind-check.`);
-                process.exit(1);
+              if (wantsJson(options.json) || !inputAllowed()) {
+                if (confirmationGranted()) {
+                  console.warn(`⚠ ${msg} Proceeding because --yes was provided.`);
+                } else {
+                  // Non-interactive: fail with error
+                  console.error(
+                    `✗ ${msg} Merge base into head first, use --skip-behind-check, or pass --yes.`
+                  );
+                  process.exit(1);
+                }
               } else {
                 // Interactive: prompt user
                 console.warn(`⚠ ${msg}`);
@@ -211,10 +164,10 @@ function createCreateCommand(): Command {
           const body = await readBodyInput(options.body, options.bodyFile);
 
           // 8. Resolve repo DID
-          const repoDid = await resolveRepoDid(context.owner, context.name, client);
+          const repoDid = await resolveRepositoryDid(context, client);
 
           // 9. Create pull request
-          if (options.json === undefined) {
+          if (!wantsJson(options.json)) {
             console.log('Creating pull request...');
           }
           const pull = await createPull({
@@ -228,17 +181,16 @@ function createCreateCommand(): Command {
           });
 
           // 10. Compute sequential number
-          const { pulls: allPulls } = await listPulls({ client, repoDid, limit: 100 });
-          const sortedAll = allPulls.sort(
-            (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          );
+          const sortedAll = await listAllPulls(client, repoDid);
           const idx = sortedAll.findIndex((p) => p.uri === pull.uri);
           const number = idx >= 0 ? idx + 1 : undefined;
 
           // 12. Output result
-          if (options.json !== undefined) {
+          if (wantsJson(options.json)) {
             const pullData: PullData = {
+              id: extractRkey(pull.uri),
               number,
+              numberKind: number === undefined ? 'unknown' : 'computed',
               title: pull.title,
               body: pull.body,
               state: 'open',
@@ -249,7 +201,7 @@ function createCreateCommand(): Command {
               sourceBranch: pull.source?.branch,
               targetBranch: pull.target.branch,
             };
-            outputJson(pullData, typeof options.json === 'string' ? options.json : undefined);
+            outputJson(pullData, requestedFields(options.json));
             return;
           }
 
@@ -274,100 +226,129 @@ function createCreateCommand(): Command {
 function createListCommand(): Command {
   return new Command('list')
     .description('List pull requests for the current repository')
-    .option('-l, --limit <number>', 'Maximum number of pull requests to fetch', '50')
+    .option('-l, --limit <number>', 'Maximum number of pull requests per page', '50')
+    .option('--cursor <cursor>', 'Continue from a pagination cursor')
+    .option('--all', 'Fetch every page')
     .option('--json [fields]', 'Output JSON; optionally specify comma-separated fields')
-    .action(async (options: { limit: string; json?: string | true }) => {
-      try {
-        // 1. Validate auth
-        const client = createApiClient();
-        await ensureAuthenticated(client);
+    .action(
+      async (options: { limit: string; cursor?: string; all?: boolean; json?: string | true }) => {
+        try {
+          // 1. Validate auth
+          const client = createApiClient();
+          await ensureAuthenticated(client);
 
-        // 2. Get repo context
-        const context = await getCurrentRepoContext();
-        if (!context) {
-          console.error('✗ Not in a Tangled repository');
-          console.error('\nTo use this repository with Tangled, add a remote:');
-          console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
-          process.exit(1);
-        }
-
-        // 3. Resolve repo DID
-        const repoDid = await resolveRepoDid(context.owner, context.name, client);
-
-        // 4. Fetch pull requests
-        const limit = Number.parseInt(options.limit, 10);
-        if (Number.isNaN(limit) || limit < 1 || limit > 100) {
-          console.error('✗ Invalid limit. Must be between 1 and 100.');
-          process.exit(1);
-        }
-
-        const { pulls } = await listPulls({
-          client,
-          repoDid,
-          limit,
-        });
-
-        // 5. Handle empty results
-        if (pulls.length === 0) {
-          if (options.json !== undefined) {
-            console.log('[]');
-          } else {
-            console.log('No pull requests found for this repository.');
+          // 2. Get repo context
+          const context = await getCurrentRepoContext();
+          if (!context) {
+            console.error('✗ Not in a Tangled repository');
+            console.error('\nTo use this repository with Tangled, add a remote:');
+            console.error('  git remote add origin git@tangled.org:<did>/<repo>.git');
+            process.exit(1);
           }
-          return;
+
+          // 3. Resolve repo DID
+          const repoDid = await resolveRepositoryDid(context, client);
+
+          // 4. Fetch pull requests
+          const limit = Number.parseInt(options.limit, 10);
+          if (Number.isNaN(limit) || limit < 1 || limit > 100) {
+            console.error('✗ Invalid limit. Must be between 1 and 100.');
+            process.exit(1);
+          }
+
+          const page = options.all
+            ? { pulls: await listAllPulls(client, repoDid), cursor: undefined }
+            : await listPulls({
+                client,
+                repoDid,
+                limit,
+                cursor: options.cursor,
+              });
+          const { pulls } = page;
+
+          // 5. Handle empty results
+          if (pulls.length === 0) {
+            if (wantsJson(options.json)) {
+              outputJson(
+                {
+                  items: [],
+                  count: 0,
+                  nextCursor: page.cursor,
+                  addressing:
+                    'Use id or uri for durable automation; numbers are computed display order.',
+                },
+                requestedFields(options.json)
+              );
+            } else {
+              console.log('No pull requests found for this repository.');
+            }
+            return;
+          }
+
+          // Sort pull requests by creation time (oldest first) for consistent numbering
+          const sortedPulls = sortPulls(pulls);
+
+          // Build pull data with states (in parallel for performance)
+          const pullData = await Promise.all(
+            sortedPulls.map(async (pull, i) => {
+              const state = await getPullState({ client, pullUri: pull.uri });
+              return {
+                id: extractRkey(pull.uri),
+                number: options.all || !options.cursor ? i + 1 : undefined,
+                numberKind:
+                  options.all || !options.cursor ? ('computed' as const) : ('unknown' as const),
+                title: pull.title,
+                body: pull.body,
+                state,
+                author: pull.author,
+                createdAt: pull.createdAt,
+                uri: pull.uri,
+                cid: pull.cid,
+                sourceBranch: pull.source?.branch,
+                targetBranch: pull.target.branch,
+              };
+            })
+          );
+
+          // 6. Output results
+          if (wantsJson(options.json)) {
+            outputJson(
+              {
+                items: pullData,
+                count: pullData.length,
+                nextCursor: page.cursor,
+                addressing:
+                  'Use id or uri for durable automation; numbers are computed display order.',
+              },
+              requestedFields(options.json)
+            );
+            return;
+          }
+
+          console.log(
+            `\nFound ${pullData.length} pull request${pullData.length === 1 ? '' : 's'}:\n`
+          );
+
+          for (const item of pullData) {
+            const stateBadge = formatPullState(item.state);
+            const date = formatDate(item.createdAt);
+            const branches = item.sourceBranch
+              ? `${item.sourceBranch} → ${item.targetBranch}`
+              : item.targetBranch;
+            const address = item.number === undefined ? item.id : `#${item.number}`;
+            console.log(`  ${address}  ${stateBadge}  ${item.title}`);
+            console.log(`              ${branches}  ·  Created ${date}`);
+            console.log();
+          }
+          if (page.cursor) console.log(`Next cursor: ${page.cursor}`);
+        } catch (error) {
+          console.error(
+            `✗ Failed to list pull requests: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+          process.exit(1);
         }
-
-        // Sort pull requests by creation time (oldest first) for consistent numbering
-        const sortedPulls = pulls.sort(
-          (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-        );
-
-        // Build pull data with states (in parallel for performance)
-        const pullData = await Promise.all(
-          sortedPulls.map(async (pull, i) => {
-            const state = await getPullState({ client, pullUri: pull.uri });
-            return {
-              number: i + 1,
-              title: pull.title,
-              body: pull.body,
-              state,
-              author: pull.author,
-              createdAt: pull.createdAt,
-              uri: pull.uri,
-              cid: pull.cid,
-              sourceBranch: pull.source?.branch,
-              targetBranch: pull.target.branch,
-            };
-          })
-        );
-
-        // 6. Output results
-        if (options.json !== undefined) {
-          outputJson(pullData, typeof options.json === 'string' ? options.json : undefined);
-          return;
-        }
-
-        console.log(
-          `\nFound ${pullData.length} pull request${pullData.length === 1 ? '' : 's'}:\n`
-        );
-
-        for (const item of pullData) {
-          const stateBadge = formatPullState(item.state);
-          const date = formatDate(item.createdAt);
-          const branches = item.sourceBranch
-            ? `${item.sourceBranch} → ${item.targetBranch}`
-            : item.targetBranch;
-          console.log(`  #${item.number}  ${stateBadge}  ${item.title}`);
-          console.log(`              ${branches}  ·  Created ${date}`);
-          console.log();
-        }
-      } catch (error) {
-        console.error(
-          `✗ Failed to list pull requests: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        process.exit(1);
       }
-    });
+    );
 }
 
 /**
@@ -394,7 +375,7 @@ function createViewCommand(): Command {
         }
 
         // 3. Resolve repo DID
-        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoDid = await resolveRepositoryDid(context, client);
 
         // 4. Resolve PR ID to URI
         const { uri: pullUri, displayId } = await resolvePullUri(prId, client, repoDid);
@@ -403,8 +384,8 @@ function createViewCommand(): Command {
         const pullData = await getCompletePullData(client, pullUri, displayId, repoDid);
 
         // 6. Output result
-        if (options.json !== undefined) {
-          outputJson(pullData, typeof options.json === 'string' ? options.json : undefined);
+        if (wantsJson(options.json)) {
+          outputJson(pullData, requestedFields(options.json));
           return;
         }
 
@@ -459,14 +440,17 @@ function createDeleteCommand(): Command {
         }
 
         // 3. Resolve repo DID
-        const repoDid = await resolveRepoDid(context.owner, context.name, client);
+        const repoDid = await resolveRepositoryDid(context, client);
 
         // 4. Resolve PR ID to URI
         const { uri: pullUri, displayId } = await resolvePullUri(prId, client, repoDid);
         const pull = await getCompletePullData(client, pullUri, displayId, repoDid);
 
         // 5. Confirm
-        if (!options.yes) {
+        if (!confirmationGranted(options.yes)) {
+          if (!inputAllowed()) {
+            throw new Error('Refusing to delete without --yes while --no-input is active');
+          }
           const proceed = await confirm({
             message: `Delete pull request ${displayId} ("${pull.title}")? This cannot be undone.`,
             default: false,

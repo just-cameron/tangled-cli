@@ -1,6 +1,5 @@
-# CI Pipeline - Run linting, type checking, and tests on all pushes
-#
-# This pipeline ensures code quality by running checks on every push to any branch.
+# Canonical Tangled CI. Keep this aligned with `bun run check`; GitHub Actions
+# exists for cross-platform release artifacts, not as the source CI surface.
 
 when:
   - event: ["push", "manual"]
@@ -28,11 +27,14 @@ steps:
   - name: "Install dependencies"
     command: "bun install --frozen-lockfile"
 
-  - name: "Run linting"
-    command: "biome check ."
+  - name: "Run checks"
+    command: "bun run check"
 
-  - name: "Run type checking"
-    command: "bun run typecheck"
+  - name: "Build npm package"
+    command: "bun run build"
 
-  - name: "Run tests"
-    command: "bun run test"
+  - name: "Build and smoke-test binary"
+    command: |
+      bun run build:binary -- --output artifacts/tang-linux-x64
+      ./artifacts/tang-linux-x64 --version
+      ./artifacts/tang-linux-x64 --help >/dev/null

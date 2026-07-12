@@ -7,6 +7,7 @@ import { simpleGit } from 'simple-git';
 import { isTangledRemote, parseTangledRemote } from '../utils/git.js';
 import { promptForRemoteSelection, promptToSaveRemote } from '../utils/prompts.js';
 import { getConfiguredRemote, setLocalRemote } from './config.js';
+import { getRuntimeOptions } from './runtime.js';
 
 export interface RepositoryContext {
   owner: string; // Owner identifier - DID (e.g., "did:plc:...") or handle (e.g., "alice.bsky.social")
@@ -15,6 +16,132 @@ export interface RepositoryContext {
   remoteName: string; // Git remote name (e.g., "origin")
   remoteUrl: string; // Full remote URL
   protocol: 'ssh' | 'https'; // Protocol used by remote
+  repoAtUri?: string; // Repository record AT-URI when supplied explicitly
+  repoDid?: string; // Stable repository DID when already known
+  publicUrl?: string; // Canonical-ish public repository URL
+  selectionSource?: 'flag' | 'environment' | 'git';
+}
+
+const REPO_ROUTE_SEGMENTS = new Set([
+  'issues',
+  'pulls',
+  'pipelines',
+  'labels',
+  'tree',
+  'blob',
+  'commits',
+  'settings',
+]);
+
+/**
+ * Parse a repository selector without consulting Git or scraping a web page.
+ * Accepted forms include owner/name, Tangled URLs, repository AT-URIs, Tangled
+ * Git remotes, and a stable repository DID.
+ */
+export function parseRepositoryInput(
+  input: string,
+  source: 'flag' | 'environment' = 'flag'
+): RepositoryContext {
+  const raw = input.trim();
+  if (!raw) throw new Error('Repository selector cannot be empty');
+
+  const atUri = raw.match(/^at:\/\/(did:[^/]+)\/sh\.tangled\.repo\/([^/?#]+)$/);
+  if (atUri) {
+    const [, owner, name] = atUri;
+    return {
+      owner,
+      ownerType: 'did',
+      name,
+      remoteName: '<explicit>',
+      remoteUrl: raw,
+      protocol: 'https',
+      repoAtUri: raw,
+      publicUrl: `https://tangled.org/${owner}/${name}`,
+      selectionSource: source,
+    };
+  }
+
+  const parsedRemote = parseTangledRemote(raw);
+  if (parsedRemote) {
+    return {
+      ...parsedRemote,
+      remoteName: '<explicit>',
+      remoteUrl: raw,
+      ...(parsedRemote.owner === parsedRemote.name && { repoDid: parsedRemote.owner }),
+      publicUrl:
+        parsedRemote.owner === parsedRemote.name
+          ? undefined
+          : `https://tangled.org/${parsedRemote.owner}/${parsedRemote.name}`,
+      selectionSource: source,
+    };
+  }
+
+  if (/^https?:\/\//.test(raw)) {
+    let url: URL;
+    try {
+      url = new URL(raw);
+    } catch {
+      throw new Error(`Invalid repository URL: ${raw}`);
+    }
+    if (url.hostname !== 'tangled.org' && url.hostname !== 'tangled.sh') {
+      throw new Error(`Unsupported repository host: ${url.hostname}`);
+    }
+    const parts = url.pathname
+      .split('/')
+      .filter(Boolean)
+      .map((part) => decodeURIComponent(part));
+    if (parts[0]?.startsWith('@')) parts[0] = parts[0].slice(1);
+    const routeIndex = parts.findIndex((part) => REPO_ROUTE_SEGMENTS.has(part));
+    const repoParts = routeIndex >= 0 ? parts.slice(0, routeIndex) : parts;
+    if (repoParts.length < 2) throw new Error(`Repository URL is missing owner/name: ${raw}`);
+    const [owner, name] = repoParts;
+    return {
+      owner,
+      ownerType: owner.startsWith('did:') ? 'did' : 'handle',
+      name: name.replace(/\.git$/, ''),
+      remoteName: '<explicit>',
+      remoteUrl: raw,
+      protocol: 'https',
+      publicUrl: `https://tangled.org/${owner}/${name.replace(/\.git$/, '')}`,
+      selectionSource: source,
+    };
+  }
+
+  if (/^did:[a-z]+:[A-Za-z0-9._:%-]+$/.test(raw)) {
+    return {
+      owner: raw,
+      ownerType: 'did',
+      name: raw,
+      remoteName: '<explicit>',
+      remoteUrl: raw,
+      protocol: 'https',
+      repoDid: raw,
+      selectionSource: source,
+    };
+  }
+
+  const normalized = raw
+    .replace(/^@/, '')
+    .replace(/\.git$/, '')
+    .replace(/\/+$/, '');
+  const parts = normalized.split('/');
+  if (parts.length === 2 && parts[0] && parts[1]) {
+    const [owner, name] = parts;
+    return {
+      owner,
+      ownerType: owner.startsWith('did:') ? 'did' : 'handle',
+      name,
+      remoteName: '<explicit>',
+      remoteUrl: raw,
+      protocol: 'https',
+      publicUrl: `https://tangled.org/${owner}/${name}`,
+      selectionSource: source,
+    };
+  }
+
+  throw new Error(
+    `Invalid repository selector '${raw}'. Use OWNER/NAME, a Tangled URL, repository DID, or repository AT-URI.`
+  );
 }
 
 /**
@@ -57,6 +184,11 @@ export async function getTangledRemotes(cwd: string = process.cwd()): Promise<Re
         remoteName: remote.name,
         remoteUrl: remote.refs.fetch,
         protocol: parsed.protocol,
+        ...(parsed.owner === parsed.name && { repoDid: parsed.owner }),
+        ...(parsed.owner !== parsed.name && {
+          publicUrl: `https://tangled.org/${parsed.owner}/${parsed.name}`,
+        }),
+        selectionSource: 'git',
       });
     }
 
@@ -106,8 +238,15 @@ export async function promptForRemote(remotes: RepositoryContext[]): Promise<Rep
  * @returns Repository context or null if not in a tangled repo
  */
 export async function getCurrentRepoContext(
-  cwd: string = process.cwd()
+  cwd: string = process.cwd(),
+  explicitRepo?: string
 ): Promise<RepositoryContext | null> {
+  const runtime = getRuntimeOptions();
+  const override = explicitRepo ?? runtime.repo ?? process.env.TANG_REPO;
+  if (override) {
+    return parseRepositoryInput(override, (explicitRepo ?? runtime.repo) ? 'flag' : 'environment');
+  }
+
   // Get all tangled remotes
   const remotes = await getTangledRemotes(cwd);
 
@@ -145,6 +284,11 @@ export async function getCurrentRepoContext(
   }
 
   // Prompt user to select
+  if (runtime.noInput) {
+    throw new Error(
+      'Multiple Tangled remotes found. Select one with --repo/-R or set TANG_REPO; prompting is disabled by --no-input.'
+    );
+  }
   const selected = await promptForRemote(remotes);
 
   // Ask if user wants to save selection

@@ -60,7 +60,23 @@ export function outputJson<T extends object>(data: T | T[], fields?: string): vo
         )
       );
     } else {
-      console.log(JSON.stringify(pickFields(data as Record<string, unknown>, fieldList), null, 2));
+      const object = data as Record<string, unknown>;
+      if (Array.isArray(object.items)) {
+        console.log(
+          JSON.stringify(
+            {
+              ...object,
+              items: object.items.map((item) =>
+                pickFields(item as Record<string, unknown>, fieldList)
+              ),
+            },
+            null,
+            2
+          )
+        );
+      } else {
+        console.log(JSON.stringify(pickFields(object, fieldList), null, 2));
+      }
     }
   } else {
     console.log(JSON.stringify(data, null, 2));

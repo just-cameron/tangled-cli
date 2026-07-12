@@ -1,15 +1,12 @@
+import { confirm } from '@inquirer/prompts';
 import { Command } from 'commander';
+import { resolveEntityAddress } from '../lib/addressing.js';
 import { createApiClient } from '../lib/api-client.js';
 import { getCurrentRepoContext } from '../lib/context.js';
-import { listIssues } from '../lib/issues-api.js';
-import {
-  applyLabelOp,
-  getSubjectLabels,
-  listLabelDefinitions,
-} from '../lib/labels-api.js';
-import { listPulls } from '../lib/pulls-api.js';
-import { resolveRepoDid } from '../utils/at-uri.js';
-import { ensureAuthenticated, requireAuth } from '../utils/auth-helpers.js';
+import { applyLabelOp, getSubjectLabels, listLabelDefinitions } from '../lib/labels-api.js';
+import { resolveRepositoryDid } from '../lib/repository.js';
+import { confirmationGranted, inputAllowed, requestedFields, wantsJson } from '../lib/runtime.js';
+import { ensureAuthenticated } from '../utils/auth-helpers.js';
 import { outputJson } from '../utils/formatting.js';
 
 type SubjectKind = 'issue' | 'pr';
@@ -24,42 +21,17 @@ async function resolveSubjectUri(
   repoDid: string,
   repoAliases: string[] = []
 ): Promise<{ uri: string; displayId: string }> {
-  const normalized = input.startsWith('#') ? input.slice(1) : input;
-
-  if (/^\d+$/.test(normalized)) {
-    const num = Number.parseInt(normalized, 10);
-    if (num < 1) {
-      throw new Error(`${kind} number must be greater than 0`);
-    }
-
-    if (kind === 'issue') {
-      const { issues } = await listIssues({ client, repoDid, repoAliases, limit: 100 });
-      const sorted = issues.sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-      const issue = sorted[num - 1];
-      if (!issue) throw new Error(`Issue #${num} not found`);
-      return { uri: issue.uri, displayId: `#${num}` };
-    }
-
-    const { pulls } = await listPulls({ client, repoDid, limit: 100 });
-    const sorted = pulls.sort(
-      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-    );
-    const pull = sorted[num - 1];
-    if (!pull) throw new Error(`PR #${num} not found`);
-    return { uri: pull.uri, displayId: `#${num}` };
-  }
-
-  if (!/^[a-zA-Z0-9._-]+$/.test(normalized)) {
-    throw new Error(`Invalid ${kind} identifier: ${input}`);
-  }
-
-  const session = await requireAuth(client);
-  const collection = kind === 'issue' ? 'sh.tangled.repo.issue' : 'sh.tangled.repo.pull';
+  const resolution = await resolveEntityAddress({
+    kind: kind === 'pr' ? 'pull' : 'issue',
+    input,
+    client,
+    repoDid,
+    repoAliases,
+  });
   return {
-    uri: `at://${session.did}/${collection}/${normalized}`,
-    displayId: normalized,
+    uri: resolution.uri,
+    displayId:
+      resolution.computedNumber !== undefined ? `#${resolution.computedNumber}` : resolution.rkey,
   };
 }
 
@@ -87,7 +59,7 @@ async function withRepoContext() {
     console.error('✗ Not in a Tangled repository');
     process.exit(1);
   }
-  const repoDid = await resolveRepoDid(context.owner, context.name, client);
+  const repoDid = await resolveRepositoryDid(context, client);
   // Stable DID remotes and older issue records may store aliases in `.repo`.
   const repoAliases = Array.from(
     new Set([context.owner, context.name].filter((v) => typeof v === 'string' && v.length > 0))
@@ -110,8 +82,8 @@ export function createLabelCommand(): Command {
         const client = createApiClient();
         await ensureAuthenticated(client);
         const defs = await listLabelDefinitions(client, options.did);
-        if (options.json) {
-          outputJson(defs);
+        if (wantsJson(options.json)) {
+          outputJson(defs, requestedFields(options.json));
           return;
         }
         if (defs.length === 0) {
@@ -145,17 +117,11 @@ export function createLabelCommand(): Command {
       try {
         const kind = parseKind(kindArg);
         const { client, repoDid, repoAliases } = await withRepoContext();
-        const { uri, displayId } = await resolveSubjectUri(
-          kind,
-          id,
-          client,
-          repoDid,
-          repoAliases
-        );
+        const { uri, displayId } = await resolveSubjectUri(kind, id, client, repoDid, repoAliases);
         const labels = await getSubjectLabels(client, uri);
 
-        if (options.json) {
-          outputJson({ subject: uri, displayId, labels });
+        if (wantsJson(options.json)) {
+          outputJson({ subject: uri, displayId, labels }, requestedFields(options.json));
           return;
         }
 
@@ -187,13 +153,7 @@ export function createLabelCommand(): Command {
       try {
         const kind = parseKind(kindArg);
         const { client, context, repoDid, repoAliases } = await withRepoContext();
-        const { uri, displayId } = await resolveSubjectUri(
-          kind,
-          id,
-          client,
-          repoDid,
-          repoAliases
-        );
+        const { uri, displayId } = await resolveSubjectUri(kind, id, client, repoDid, repoAliases);
 
         const remove = decisionSwap(name);
         const result = await applyLabelOp({
@@ -204,8 +164,11 @@ export function createLabelCommand(): Command {
           searchDids: [context.owner],
         });
 
-        if (options.json) {
-          outputJson({ subject: uri, displayId, added: name, removed: remove, ...result });
+        if (wantsJson(options.json)) {
+          outputJson(
+            { subject: uri, displayId, added: name, removed: remove, ...result },
+            requestedFields(options.json)
+          );
           return;
         }
 
@@ -227,39 +190,59 @@ export function createLabelCommand(): Command {
     .argument('<kind>', 'issue or pr')
     .argument('<id>', 'Issue/PR number or rkey')
     .argument('<name>', 'Label name or definition AT-URI')
+    .option('-y, --yes', 'Skip confirmation')
     .option('--json', 'Output JSON')
-    .action(async (kindArg: string, id: string, name: string, options: { json?: boolean }) => {
-      try {
-        const kind = parseKind(kindArg);
-        const { client, context, repoDid, repoAliases } = await withRepoContext();
-        const { uri, displayId } = await resolveSubjectUri(
-          kind,
-          id,
-          client,
-          repoDid,
-          repoAliases
-        );
+    .action(
+      async (
+        kindArg: string,
+        id: string,
+        name: string,
+        options: { json?: boolean; yes?: boolean }
+      ) => {
+        try {
+          const kind = parseKind(kindArg);
+          const { client, context, repoDid, repoAliases } = await withRepoContext();
+          const { uri, displayId } = await resolveSubjectUri(
+            kind,
+            id,
+            client,
+            repoDid,
+            repoAliases
+          );
 
-        const result = await applyLabelOp({
-          client,
-          subjectUri: uri,
-          removeNamesOrUris: [name],
-          searchDids: [context.owner],
-        });
+          if (!confirmationGranted(options.yes)) {
+            if (!inputAllowed()) throw new Error('label remove requires --yes with --no-input');
+            const proceed = await confirm({
+              message: `Remove label "${name}" from ${kind} ${displayId}?`,
+              default: false,
+            });
+            if (!proceed) return;
+          }
 
-        if (options.json) {
-          outputJson({ subject: uri, displayId, removed: name, ...result });
-          return;
+          const result = await applyLabelOp({
+            client,
+            subjectUri: uri,
+            removeNamesOrUris: [name],
+            searchDids: [context.owner],
+          });
+
+          if (wantsJson(options.json)) {
+            outputJson(
+              { subject: uri, displayId, removed: name, ...result },
+              requestedFields(options.json)
+            );
+            return;
+          }
+
+          console.log(`✓ Removed label "${name}" from ${kind} ${displayId}`);
+        } catch (error) {
+          console.error(
+            `✗ Failed to remove label: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+          process.exit(1);
         }
-
-        console.log(`✓ Removed label "${name}" from ${kind} ${displayId}`);
-      } catch (error) {
-        console.error(
-          `✗ Failed to remove label: ${error instanceof Error ? error.message : 'Unknown error'}`
-        );
-        process.exit(1);
       }
-    });
+    );
 
   return label;
 }

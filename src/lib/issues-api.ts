@@ -2,6 +2,7 @@ import { parseAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import type { TangledApiClient } from './api-client.js';
 import { getBacklinks } from './constellation.js';
+import { getRecordFromDid } from './public-records.js';
 
 /**
  * Issue record type based on sh.tangled.repo.issue lexicon
@@ -160,16 +161,10 @@ export async function listIssues(params: ListIssuesParams): Promise<{
   issues: IssueWithMetadata[];
   cursor?: string;
 }> {
-  const { client, repoDid, repoAliases = [], limit = 50, cursor } = params;
+  const { client, repoDid, limit = 50, cursor } = params;
 
   // Validate authentication
-  const session = await requireAuth(client);
-
-  const matchesRepo = (repoField: string | undefined): boolean => {
-    if (!repoField) return false;
-    if (repoField === repoDid) return true;
-    return repoAliases.some((alias) => alias.length > 0 && repoField === alias);
-  };
+  await requireAuth(client);
 
   try {
     // Query constellation for all issues that reference this repo across all PDSs
@@ -177,11 +172,7 @@ export async function listIssues(params: ListIssuesParams): Promise<{
 
     // Fetch each issue record individually (constellation only gives us the AT-URI components)
     const issuePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
-      const response = await client.getAgent().com.atproto.repo.getRecord({
-        repo: did,
-        collection,
-        rkey,
-      });
+      const response = await getRecordFromDid(client, did, collection, rkey);
       return {
         ...(response.data.value as IssueRecord),
         uri: response.data.uri,
@@ -190,29 +181,7 @@ export async function listIssues(params: ListIssuesParams): Promise<{
       };
     });
 
-    let issues = await Promise.all(issuePromises);
-
-    // Always merge a local PDS scan: some clients historically stored an AT-URI
-    // (or other alias) in `.repo` instead of the bare repo DID. Constellation
-    // only backlinks the exact string; without this merge those siblings vanish
-    // from `tang issue list` whenever any correctly-linked issue exists.
-    const local = await client.getAgent().com.atproto.repo.listRecords({
-      repo: session.did,
-      collection: 'sh.tangled.repo.issue',
-      limit: Math.max(limit, 100),
-    });
-    const seen = new Set(issues.map((issue) => issue.uri));
-    for (const record of local.data.records) {
-      if (!matchesRepo((record.value as IssueRecord).repo)) continue;
-      if (seen.has(record.uri)) continue;
-      issues.push({
-        ...(record.value as IssueRecord),
-        uri: record.uri,
-        cid: record.cid as string,
-        author: session.did,
-      });
-      seen.add(record.uri);
-    }
+    const issues = await Promise.all(issuePromises);
 
     return {
       issues,
@@ -225,7 +194,6 @@ export async function listIssues(params: ListIssuesParams): Promise<{
     throw new Error('Failed to list issues: Unknown error');
   }
 }
-
 
 /**
  * Get a specific issue
@@ -241,11 +209,7 @@ export async function getIssue(params: GetIssueParams): Promise<IssueWithMetadat
 
   try {
     // Get record via AT Protocol
-    const response = await client.getAgent().com.atproto.repo.getRecord({
-      repo: did,
-      collection,
-      rkey,
-    });
+    const response = await getRecordFromDid(client, did, collection, rkey);
 
     const record = response.data.value as IssueRecord;
 
@@ -288,8 +252,9 @@ export async function updateIssue(params: UpdateIssueParams): Promise<IssueWithM
     const currentIssue = await getIssue({ client, issueUri });
 
     // Build updated record (merge existing with new values)
+    const { uri: _uri, cid: _cid, author: _author, ...currentRecord } = currentIssue;
     const updatedRecord: IssueRecord = {
-      ...currentIssue,
+      ...currentRecord,
       ...(title !== undefined && { title }),
       ...(body !== undefined && { body }),
     };
@@ -371,11 +336,7 @@ export async function getIssueState(params: GetIssueStateParams): Promise<'open'
 
     // Fetch each state record in parallel
     const statePromises = backlinks.records.map(async ({ did, collection, rkey }) => {
-      const response = await client.getAgent().com.atproto.repo.getRecord({
-        repo: did,
-        collection,
-        rkey,
-      });
+      const response = await getRecordFromDid(client, did, collection, rkey);
       return {
         rkey,
         value: response.data.value as {
@@ -417,10 +378,17 @@ export async function resolveSequentialNumber(
   const match = displayId.match(/^#(\d+)$/);
   if (match) return Number.parseInt(match[1], 10);
 
-  const { issues } = await listIssues({ client, repoDid, limit: 100 });
-  const sorted = issues.sort(
-    (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-  );
+  const byUri = new Map<string, IssueWithMetadata>();
+  let cursor: string | undefined;
+  do {
+    const page = await listIssues({ client, repoDid, limit: 100, cursor });
+    for (const issue of page.issues) byUri.set(issue.uri, issue);
+    cursor = page.cursor;
+  } while (cursor);
+  const sorted = [...byUri.values()].sort((a, b) => {
+    const byTime = a.createdAt.localeCompare(b.createdAt);
+    return byTime !== 0 ? byTime : a.uri.localeCompare(b.uri);
+  });
   const idx = sorted.findIndex((i) => i.uri === issueUri);
   return idx >= 0 ? idx + 1 : undefined;
 }
@@ -429,7 +397,9 @@ export async function resolveSequentialNumber(
  * Canonical JSON shape for a single issue, used by all issue commands.
  */
 export interface IssueData {
+  id?: string;
   number: number | undefined;
+  numberKind?: 'computed' | 'unknown';
   title: string;
   body?: string;
   state: 'open' | 'closed';
@@ -458,7 +428,9 @@ export async function getCompleteIssueData(
   ]);
   const state = stateOverride ?? (await getIssueState({ client, issueUri }));
   return {
+    id: issue.uri.split('/').pop() ?? issue.uri,
     number,
+    numberKind: number === undefined ? 'unknown' : 'computed',
     title: issue.title,
     body: issue.body,
     state,

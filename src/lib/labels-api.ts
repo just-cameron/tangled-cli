@@ -2,6 +2,7 @@ import { parseAtUri } from '../utils/at-uri.js';
 import { requireAuth } from '../utils/auth-helpers.js';
 import type { TangledApiClient } from './api-client.js';
 import { getBacklinks } from './constellation.js';
+import { getRecordFromDid, listAllRecordsFromDid } from './public-records.js';
 
 /**
  * Label definition record (sh.tangled.label.definition)
@@ -54,13 +55,9 @@ export async function listLabelDefinitions(
   const session = await requireAuth(client);
   const did = repoDid ?? session.did;
 
-  const response = await client.getAgent().com.atproto.repo.listRecords({
-    repo: did,
-    collection: 'sh.tangled.label.definition',
-    limit: 100,
-  });
+  const records = await listAllRecordsFromDid(client, did, 'sh.tangled.label.definition');
 
-  return response.data.records.map((record) => {
+  return records.map((record) => {
     const value = record.value as {
       name?: string;
       color?: string;
@@ -148,18 +145,14 @@ export async function getSubjectLabels(
         return {
           did: parsed?.did ?? session.did,
           collection: 'sh.tangled.label.op',
-          rkey: parsed?.rkey ?? r.uri.split('/').pop()!,
+          rkey: parsed?.rkey ?? r.uri.split('/').pop() ?? r.uri,
         };
       });
   }
 
   const ops: { performedAt: string; add: LabelOpOperand[]; delete: LabelOpOperand[] }[] = [];
   for (const ref of opRefs) {
-    const response = await client.getAgent().com.atproto.repo.getRecord({
-      repo: ref.did,
-      collection: ref.collection,
-      rkey: ref.rkey,
-    });
+    const response = await getRecordFromDid(client, ref.did, ref.collection, ref.rkey);
     const value = response.data.value as unknown as LabelOpRecord;
     if (value.subject !== subjectUri) continue;
     ops.push({
@@ -214,7 +207,9 @@ export interface ApplyLabelParams {
  * Mutual exclusivity for decision-* labels is the caller's responsibility
  * (pass both add and remove).
  */
-export async function applyLabelOp(params: ApplyLabelParams): Promise<{ uri: string; cid: string }> {
+export async function applyLabelOp(
+  params: ApplyLabelParams
+): Promise<{ uri: string; cid: string }> {
   const {
     client,
     subjectUri,

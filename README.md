@@ -1,260 +1,222 @@
 # tang
 
-`tang` is a small TypeScript CLI for working with [Tangled](https://tangled.org) repositories from a terminal. It is designed for two overlapping users: humans who want `gh`-style repository commands, and agents that need predictable JSON output, repo-context inference, and loud failures instead of mystery web UI state.
+`tang` is an independent, automation-first CLI for [Tangled](https://tangled.org). It gives humans and coding agents one command surface for repository context, issues, pull requests, and Spindle CI without scraping the web UI.
 
-Source of truth for this fork: <https://tangled.org/cameron.stream/tangled-cli>
+Source of truth: <https://tangled.org/cameron.stream/tangled-cli>
 
-## Status
+## Install
 
-Implemented today:
-
-- AT Protocol auth/session commands (OAuth browser login, with an app-password fallback)
-- SSH key upload/verification helpers
-- local/global CLI config
-- repository context inference from `tangled.org` git remotes
-- issue create/list/view/edit/close/reopen
-- pull request create/list/view/delete
-- `--json [fields]` output for script/agent use on supported commands
-
-Not implemented yet:
-
-- repository create/view commands
-- pull request comments, reviews, merge, close/reopen
-- CI/pipeline, labels, reactions, collaborator, fork, and secret-management commands
-
-## Installation
-
-This fork is currently installed from the repo, not from a registry package.
+Published releases support three paths:
 
 ```bash
+# npm (Node 22+)
+npm install --global tangled-cli
+
+# or download a checksummed tang-{platform}-{arch} binary from the release page
+# https://github.com/just-cameron/tangled-cli/releases
+
+# source checkout
 git clone git@tangled.org:cameron.stream/tangled-cli
 cd tangled-cli
-bun install
+bun install --frozen-lockfile
 bun run build
 bun link
 ```
 
-Then verify:
+Tagged releases build Linux, macOS, and Windows binaries, attach SHA-256 files, and publish the npm package with provenance. Those artifacts are suitable inputs for a Homebrew tap; the tap formula should pin the release URL and checksum rather than building the repository at install time.
+
+The Tangled repository is authoritative. GitHub is a release mirror used to run the cross-platform artifact workflow; tag the same revision in both places. Maintainers must configure the mirror's `NPM_TOKEN` Actions secret before cutting a release.
+The npm `repository` metadata points at that public mirror because npm provenance requires it to exactly match the GitHub repository that performs the publish.
+
+Verify the installation:
 
 ```bash
 tang --version
-tang --help
+tang doctor
 ```
 
-For development without linking:
+## Authenticate
 
-```bash
-bun run dev -- --help
-bun run dev -- issue list
-```
-
-## Authentication
-
-`tang auth login` defaults to the AT Protocol OAuth loopback flow: it asks for your handle, opens your browser, receives the callback on `127.0.0.1`, and stores the session in the OS keychain. Use `tang auth login --app-password` for the legacy PDS app-password flow when OAuth is unavailable.
+OAuth is the default. The browser callback binds to loopback only, and session secrets are stored in the OS keychain.
 
 ```bash
 tang auth login
-tang auth login --app-password
 tang auth status
-tang auth logout
+tang auth status --diagnostic     # expiry/scope/audience; token value stays hidden
+tang auth logout                  # confirms before deleting the session
 ```
 
-Most issue and pull request commands require auth. If auth is missing, the CLI exits with a direct error:
+Legacy PDS app passwords remain available:
+
+```bash
+tang auth login --app-password
+```
+
+`auth status --show-token` exists for exceptional debugging. It refuses JSON and non-interactive output, then presents a warning and requires confirmation. Tokens grant account access and should not be pasted into issues, logs, or agent prompts.
+
+## Select a repository
+
+Repo-scoped commands use the first available selector in this order:
+
+1. global `--repo <selector>`
+2. `TANG_REPO`
+3. configured remote (`TANGLED_REMOTE`, `.tangledrc`, or user config)
+4. a Tangled Git remote in the current checkout
+
+Accepted selectors include:
 
 ```text
-✗ Not authenticated. Run "tang auth login" first.
+owner.handle/repository
+did:plc:owner/repository
+did:plc:repository
+at://did:plc:owner/sh.tangled.repo/<rkey>
+https://tangled.org/owner.handle/repository
 ```
 
-## Repository context
-
-Run repo-scoped commands from inside a git repository whose remote points at Tangled:
+Examples:
 
 ```bash
-git remote -v
-# origin  git@tangled.org:cameron.stream/example-repo (fetch)
+tang --repo cameron.stream/tangled-cli context
+TANG_REPO=did:plc:... tang issue list
+tang context --json
 ```
 
-Then:
+Resolution follows the repository record to its stable repository DID and discovers its knot and Spindle. Public reads go to the record owner's authoritative PDS when a signed-in PDS cannot serve a foreign record.
 
-```bash
-tang context
+## Global automation flags
+
+```text
+--repo <selector>  operate outside a Git checkout
+--json             machine-readable output
+--fields <fields>  filter comma-separated fields when using global --json
+--no-input         never prompt; fail with a remediation instead
+-y, --yes          grant confirmation to commands that support it
 ```
 
-`tang context` resolves the Tangled owner, repo name, protocol, and remote. Commands use that context instead of asking the user or agent to manually supply repo DIDs.
+Environment equivalents:
 
-Bare repo-DID remotes are also supported:
-
-```bash
-git remote add origin git@tangled.org:did:plc:...
+```text
+TANG_REPO
+TANG_JSON=1
+TANG_NO_INPUT=1
+TANG_YES=1
 ```
 
-## Commands
+Precedence is explicit command flag → environment → discovered/configured context. `--no-input` never implies consent: a destructive action also needs `--yes`.
 
-| Command | Description |
-| :--- | :--- |
-| `tang auth login` | Authenticate with OAuth in your browser |
-| `tang auth login --app-password` | Authenticate with a PDS app password |
-| `tang auth status` | Show whether a session is available |
-| `tang auth logout` | Clear stored credentials |
-| `tang ssh-key add <path>` | Upload a public SSH key |
-| `tang ssh-key verify` | Verify SSH auth against Tangled |
-| `tang config list` | List configurable keys |
-| `tang config get [key]` | Read config |
-| `tang config set <key> <value>` | Set config |
-| `tang config unset <key>` | Clear config |
-| `tang context` | Show resolved repo context |
-| `tang issue create <title>` | Create an issue |
-| `tang issue list` | List issues for the current repo |
-| `tang issue view <issue-id>` | View an issue by number/rkey |
-| `tang issue edit <issue-id>` | Edit issue title/body |
-| `tang issue close <issue-id>` | Close an issue |
-| `tang issue reopen <issue-id>` | Reopen an issue |
-| `tang pr create --base <base> --head <head> --title <title>` | Create a pull request record from a branch diff |
-| `tang pr list` | List pull requests for the current repo |
-| `tang pr view <pr-id>` | View a pull request by number/rkey |
-
-Use `--help` on any command for exact flags:
+## Issues and pull requests
 
 ```bash
-tang issue create --help
-tang pr create --help
-```
+tang issue list --all
+tang issue create "Context fails across PDSes" --body-file issue.md
+tang issue view <rkey>
+tang issue close <rkey>
 
-## Issue workflow
-
-```bash
-# from inside a Tangled-backed git repo
-tang issue list
-tang issue create "Bug: context resolution fails" --body "Steps and expected behavior."
-tang issue view 1
-tang issue edit 1 --title "Bug: repo DID context resolution fails"
-tang issue close 1
-tang issue reopen 1
-```
-
-Issue bodies can come from a flag, a file, or stdin:
-
-```bash
-tang issue create "Bug from file" --body-file ./issue.md
-echo "stdin body" | tang issue create "Bug from stdin" --body-file -
-```
-
-## Pull request workflow
-
-Create a normal git branch, commit your changes, and push the branch first:
-
-```bash
-git switch -c my-feature
-# edit, test, commit
-git push -u origin my-feature
-```
-
-Then create the Tangled pull request record:
-
-```bash
-tang pr create --base main --head my-feature --title "Add feature" --body-file ./pr.md
-```
-
-What `pr create` does:
-
-1. Resolves the current Tangled repo from git remotes.
-2. Checks whether the head branch is behind the base branch unless `--skip-behind-check` is set.
-3. Generates `git diff <base>..<head>`.
-4. Gzip-compresses the patch.
-5. Uploads the patch blob through AT Protocol.
-6. Creates a `sh.tangled.repo.pull` record.
-
-List and view pull requests:
-
-```bash
-tang pr list
-tang pr list --json number,title,state,sourceBranch,targetBranch
-tang pr view 1
+tang pr create --base main --head feature --title "Add feature" --body-file pr.md
+tang pr list --all
 tang pr view <rkey>
+tang pr delete <rkey> --yes
 ```
 
-## JSON output
+List commands support `--cursor`, `--limit`, and `--all`. Bodies accept flags, files, or stdin (`--body-file -`). Pull creation checks whether the head is behind its base, builds and compresses the Git patch, uploads it as an AT Protocol blob, then creates the pull record.
 
-Supported commands accept `--json [fields]`.
+### Identifier warning
+
+Tangled issue and pull records do **not** store sequential numbers. The app view may display numbers, while `tang` can only compute a deterministic 1-based order after collecting the full record set. Therefore:
+
+- use an AT-URI or exact rkey in scripts;
+- treat `#12` as a human-facing fallback, not a durable automation ID;
+- JSON includes `id`, `uri`, and `numberKind` so callers can make that distinction;
+- numeric resolution emits a warning.
+
+## Pipelines and CI
+
+Pipeline commands use the current `sh.tangled.ci.*` Spindle XRPC namespace directly:
 
 ```bash
-tang issue list --json number,title,state
-tang pr list --json number,title,state,sourceBranch,targetBranch
+tang pipeline list
+tang ci list --all                         # `ci` aliases `pipeline`
+tang pipeline view <pipeline-tid>
+tang pipeline logs <pipeline-tid>
+tang pipeline logs <pipeline-tid> -w check
+
+tang run --sha "$(git rev-parse HEAD)"      # top-level dispatch shortcut
+tang pipeline run -w check -i mode=full
+tang pipeline retry <pipeline-tid> --yes
+tang pipeline cancel <pipeline-tid> --yes
+tang pipeline cancel <pipeline-tid> -w site --yes
 ```
 
-Without a field list, JSON commands return the command's full canonical object shape. With a comma-separated field list, output is filtered for smaller agent/context payloads.
+`list` and `view` are public Spindle queries. `run`, `retry`, and `cancel` mint method-bound service-auth tokens through the signed-in PDS, then call the repository's configured Spindle. `logs` opens the Spindle subscription and decodes AT Protocol CBOR event frames; it does not scrape or proxy through the Tangled website.
 
-## Architecture
+## JSON contracts
 
-`src/index.ts` registers the Commander command tree. The code is split by responsibility:
+Examples:
 
-- `src/commands/` — CLI command factories and terminal output
-- `src/lib/` — API/business logic with no Commander dependency
-- `src/utils/` — validation, AT-URI parsing, formatting, body input, auth helpers, git remote parsing
-- `src/lexicon/` — generated Tangled/AT Protocol lexicon types
-- `tests/` — Vitest coverage mirroring the source tree
+```bash
+tang issue list --json
+tang issue list --json id,title,state
+tang pipeline list --json id,status,commit
+tang pipeline logs <id> --json
+```
 
-Important implementation notes:
+Paginated list output is an envelope:
 
-- Issue and PR display numbers are not stored in records. They are computed by sorting records by `createdAt` and using the 1-based index.
-- Issue state is stored as separate `sh.tangled.repo.issue.state` records; the newest state record wins.
-- PR state is stored as separate `sh.tangled.repo.pull.status` records; no status record means open.
-- Cross-PDS issue/PR discovery uses Constellation backlinks to find records that reference the current repo AT-URI.
-- All validation helpers belong in `src/utils/validation.ts`.
+```json
+{
+  "items": [],
+  "count": 0,
+  "nextCursor": "optional opaque cursor",
+  "addressing": "issues and pulls also carry the identifier warning"
+}
+```
+
+Field selection filters objects inside `items`, not envelope metadata. Streaming logs are newline-delimited JSON: one complete event object per stdout line. In JSON mode, normal status prose stays off stdout; failures use stderr and a nonzero exit status.
+
+## Diagnostics
+
+```bash
+tang doctor
+tang doctor --json
+```
+
+The doctor checks the runtime, config directory, DID resolution, live authentication, repository selection/resolution, Spindle discovery/query access, and Git. It prints concrete remediation for warnings and failures and exits nonzero for failed checks.
+
+## Command map
+
+```text
+tang auth login|status|logout
+tang ssh-key add|verify
+tang config list|get|set|unset
+tang context
+tang doctor
+tang issue create|list|view|edit|close|reopen
+tang pr create|list|view|delete
+tang label defs|list|add|remove
+tang pipeline|ci list|view|logs|run|retry|cancel
+tang run
+```
+
+Use `tang <command> --help` for exact flags.
 
 ## Development
 
-Prerequisites:
-
-- Node.js 22+
-- Bun
-
-Install dependencies:
+Prerequisites are Node 22+ and Bun.
 
 ```bash
-bun install
-```
-
-Useful scripts:
-
-```bash
+bun install --frozen-lockfile
 bun run dev -- --help
-bun run typecheck
+bun run check            # typecheck + Biome + Vitest
 bun run build
-bun run test
-bun run lint
-bun run lint:fix
-bun run format
+bun run build:binary
 ```
 
-Run a single test file:
+Architecture:
 
-```bash
-bunx vitest run tests/commands/pr.test.ts
-```
+- `src/commands/` — Commander adapters and terminal contracts
+- `src/lib/` — repository resolution, addressing, PDS access, API, and CI logic
+- `src/lexicon/` — generated record-oriented Tangled types
+- `lexicons/` — vendored Tangled schemas, including current CI XRPC schemas
+- `tests/` — unit and command tests
 
-Before pushing a change:
-
-```bash
-bun run typecheck
-bun run build
-bun run test
-bun run lint
-```
-
-## Project structure
-
-```text
-tangled-cli/
-├── src/
-│   ├── commands/
-│   ├── lib/
-│   ├── lexicon/
-│   ├── utils/
-│   └── index.ts
-├── tests/
-├── scripts/
-├── lexicons/
-├── package.json
-└── README.md
-```
+Update vendored schemas with `bun run update-lexicons`. CI lexicons are intentionally not fed to the record code generator because they describe queries, procedures, and subscriptions; `src/lib/ci-api.ts` implements that transport boundary directly.

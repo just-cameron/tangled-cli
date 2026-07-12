@@ -95,21 +95,17 @@ describe('pr list command', () => {
     const command = createPrCommand();
     await command.parseAsync(['node', 'test', 'list', '--json']);
 
-    const jsonOutput = consoleLogSpy.mock.calls.find((call) => {
-      try {
-        const parsed = JSON.parse(String(call[0]));
-        return Array.isArray(parsed);
-      } catch {
-        return false;
-      }
-    });
-    expect(jsonOutput).toBeDefined();
+    const jsonOutput = JSON.parse(String(consoleLogSpy.mock.calls[0][0]));
+    expect(jsonOutput.items).toHaveLength(1);
   });
 
   it('should output [] JSON when no pulls and --json', async () => {
     const command = createPrCommand();
     await command.parseAsync(['node', 'test', 'list', '--json']);
-    expect(consoleLogSpy).toHaveBeenCalledWith('[]');
+    expect(JSON.parse(String(consoleLogSpy.mock.calls[0][0]))).toMatchObject({
+      items: [],
+      count: 0,
+    });
   });
 
   it('should exit 1 when not in a Tangled repository', async () => {
