@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import type { TangledApiClient } from '../lib/api-client.js';
-import { KeychainAccessError } from '../lib/session.js';
+import { InvalidCredentialDataError, KeychainAccessError } from '../lib/session.js';
 
 /**
  * Validate that the client is authenticated and has an active session
@@ -47,6 +47,11 @@ export async function ensureAuthenticated(client: TangledApiClient): Promise<voi
       process.exit(1);
     }
   } catch (error) {
+    if (error instanceof InvalidCredentialDataError) {
+      console.error('✗ Stored authentication data is invalid.');
+      console.error('  Run "tang auth logout --yes", then "tang auth login".');
+      process.exit(1);
+    }
     if (error instanceof KeychainAccessError) {
       const unlocked = tryUnlockKeychain();
       if (unlocked) {

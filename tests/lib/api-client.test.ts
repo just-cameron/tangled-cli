@@ -2,7 +2,7 @@ import type { AtpAgent, AtpSessionData } from '@atproto/api';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TangledApiClient } from '../../src/lib/api-client.js';
 import * as sessionModule from '../../src/lib/session.js';
-import { KeychainAccessError } from '../../src/lib/session.js';
+import { InvalidCredentialDataError, KeychainAccessError } from '../../src/lib/session.js';
 import { mockSessionData, mockSessionMetadata } from '../helpers/mock-data.js';
 
 // Mock @atproto/api
@@ -165,6 +165,15 @@ describe('TangledApiClient', () => {
       );
 
       await expect(client.resumeSession()).rejects.toThrow(KeychainAccessError);
+      expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).not.toHaveBeenCalled();
+    });
+
+    it('should rethrow invalid credential data without clearing metadata', async () => {
+      vi.mocked(sessionModule.getCurrentSessionMetadata).mockRejectedValueOnce(
+        new InvalidCredentialDataError()
+      );
+
+      await expect(client.resumeSession()).rejects.toThrow(InvalidCredentialDataError);
       expect(vi.mocked(sessionModule.clearCurrentSessionMetadata)).not.toHaveBeenCalled();
     });
   });

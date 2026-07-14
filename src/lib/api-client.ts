@@ -6,6 +6,7 @@ import {
   deleteOAuthSession,
   deleteSession,
   getCurrentSessionMetadata,
+  InvalidCredentialDataError,
   KeychainAccessError,
   loadSession,
   saveCurrentSessionMetadata,
@@ -127,8 +128,9 @@ export class TangledApiClient {
 
       return true;
     } catch (error) {
-      if (error instanceof KeychainAccessError) {
-        // Don't clear credentials — keychain may just be temporarily locked
+      if (error instanceof KeychainAccessError || error instanceof InvalidCredentialDataError) {
+        // Preserve metadata so the caller can report and remediate the exact
+        // credential-storage failure instead of treating it as logged out.
         throw error;
       }
       // Session resume failed (network error, expired refresh token, etc.)

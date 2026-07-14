@@ -46,12 +46,14 @@ tang auth status --diagnostic     # expiry/scope/audience; token value stays hid
 tang auth logout                  # confirms before deleting the session
 ```
 
-On macOS, `tang` accesses its Keychain entries through Apple's stable
-`/usr/bin/security` helper. This prevents Homebrew or other Node upgrades from
-changing the executable identity attached to the credentials and causing a new
-Keychain prompt on every command. Existing credentials created by an older
-version may ask once whether `security` can access the item; enter your macOS
-login password and choose **Always Allow** to complete the migration.
+On macOS, `tang` stores OAuth credentials in the login Keychain and accesses
+them through Apple's stable `/usr/bin/security` helper. The normal login flow
+does not ask you to enter any Keychain item data: provide your handle, approve
+the browser login, and `tang` stores the resulting session automatically. If a
+legacy item needs authorization, macOS may show its standard system dialog;
+enter a Mac login password only in that recognizable dialog. A terminal prompt
+that says `password data for new item` is never an instruction to enter an
+account or Mac password.
 
 Legacy PDS app passwords remain available:
 

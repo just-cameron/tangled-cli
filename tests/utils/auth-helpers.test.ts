@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TangledApiClient } from '../../src/lib/api-client.js';
-import { KeychainAccessError } from '../../src/lib/session.js';
+import { InvalidCredentialDataError, KeychainAccessError } from '../../src/lib/session.js';
 import { ensureAuthenticated, requireAuth } from '../../src/utils/auth-helpers.js';
 
 vi.mock('node:child_process', () => ({
@@ -131,6 +131,20 @@ describe('ensureAuthenticated', () => {
     await expect(ensureAuthenticated(mockClient)).rejects.toThrow('process.exit called');
     expect(mockConsoleError).toHaveBeenCalledWith(
       '✗ Cannot access keychain. Please unlock your Mac keychain and try again.'
+    );
+    expect(mockExit).toHaveBeenCalledWith(1);
+  });
+
+  it('does not ask for a Keychain password when stored credential data is malformed', async () => {
+    const mockClient = {
+      resumeSession: vi.fn().mockRejectedValue(new InvalidCredentialDataError()),
+    } as unknown as TangledApiClient;
+
+    await expect(ensureAuthenticated(mockClient)).rejects.toThrow('process.exit called');
+    expect(execSync).not.toHaveBeenCalled();
+    expect(mockConsoleError).toHaveBeenCalledWith('✗ Stored authentication data is invalid.');
+    expect(mockConsoleError).toHaveBeenCalledWith(
+      '  Run "tang auth logout --yes", then "tang auth login".'
     );
     expect(mockExit).toHaveBeenCalledWith(1);
   });

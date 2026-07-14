@@ -3,19 +3,15 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { AtpSessionData } from '@atproto/api';
 import type { NodeSavedSession, NodeSavedState } from '@atproto/oauth-client-node';
+import { InvalidCredentialDataError, KeychainAccessError } from './errors.js';
 import { deleteKeychainSecret, loadKeychainSecret, saveKeychainSecret } from './keychain.js';
+
+export { InvalidCredentialDataError, KeychainAccessError } from './errors.js';
 
 const SERVICE_NAME = 'tangled-cli';
 const OAUTH_SESSION_SERVICE_NAME = 'tangled-cli-oauth-session';
 const OAUTH_STATE_SERVICE_NAME = 'tangled-cli-oauth-state';
 const SESSION_METADATA_PATH = join(homedir(), '.config', 'tangled', 'session.json');
-
-export class KeychainAccessError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'KeychainAccessError';
-  }
-}
 
 export interface SessionMetadata {
   handle: string;
@@ -33,7 +29,13 @@ async function saveKeychainJson(service: string, accountId: string, value: unkno
 async function loadKeychainJson<T>(service: string, accountId: string): Promise<T | null> {
   const serialized = await loadKeychainSecret(service, accountId);
   if (!serialized) return null;
-  return JSON.parse(serialized) as T;
+  try {
+    return JSON.parse(serialized) as T;
+  } catch {
+    // JSON.parse includes the source text in its error on some runtimes. That
+    // source is a credential and must never flow into a user-visible message.
+    throw new InvalidCredentialDataError();
+  }
 }
 
 /**
@@ -63,6 +65,7 @@ export async function loadSession(accountId: string): Promise<AtpSessionData | n
   try {
     return await loadKeychainJson<AtpSessionData>(SERVICE_NAME, accountId);
   } catch (error) {
+    if (error instanceof InvalidCredentialDataError) throw error;
     throw new KeychainAccessError(
       `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -83,6 +86,7 @@ export async function loadOAuthSession(sub: string): Promise<NodeSavedSession | 
   try {
     return await loadKeychainJson<NodeSavedSession>(OAUTH_SESSION_SERVICE_NAME, sub);
   } catch (error) {
+    if (error instanceof InvalidCredentialDataError) throw error;
     throw new KeychainAccessError(
       `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
     );
@@ -104,7 +108,14 @@ export async function saveOAuthState(key: string, state: NodeSavedState): Promis
 }
 
 export async function loadOAuthState(key: string): Promise<NodeSavedState | null> {
-  return await loadKeychainJson<NodeSavedState>(OAUTH_STATE_SERVICE_NAME, key);
+  try {
+    return await loadKeychainJson<NodeSavedState>(OAUTH_STATE_SERVICE_NAME, key);
+  } catch (error) {
+    if (error instanceof InvalidCredentialDataError) throw error;
+    throw new KeychainAccessError(
+      `Cannot access keychain: ${error instanceof Error ? error.message : 'Unknown error'}`
+    );
+  }
 }
 
 export async function deleteOAuthState(key: string): Promise<boolean> {

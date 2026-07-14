@@ -4,6 +4,9 @@ import {
   clearCurrentSessionMetadata,
   deleteSession,
   getCurrentSessionMetadata,
+  InvalidCredentialDataError,
+  loadOAuthSession,
+  loadOAuthState,
   loadSession,
   saveCurrentSessionMetadata,
   saveSession,
@@ -112,6 +115,38 @@ describe('Session Management', () => {
     it('should return null when session not found', async () => {
       const result = await loadSession('did:plc:notfound');
       expect(result).toBeNull();
+    });
+
+    it('never includes malformed credential bytes in a parse error', async () => {
+      const exposedPassword = 'this-must-never-appear-in-an-error';
+      mockKeyringStorage.set('tangled-cli-oauth-state:bad-state', exposedPassword);
+
+      let thrown: unknown;
+      try {
+        await loadOAuthState('bad-state');
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(InvalidCredentialDataError);
+      expect((thrown as Error).message).toBe('Stored authentication data is invalid.');
+      expect((thrown as Error).message).not.toContain(exposedPassword);
+    });
+
+    it('redacts malformed OAuth session credential bytes', async () => {
+      const exposedPassword = 'oauth-session-secret-must-not-appear';
+      mockKeyringStorage.set('tangled-cli-oauth-session:bad-sub', exposedPassword);
+
+      let thrown: unknown;
+      try {
+        await loadOAuthSession('bad-sub');
+      } catch (error) {
+        thrown = error;
+      }
+
+      expect(thrown).toBeInstanceOf(InvalidCredentialDataError);
+      expect((thrown as Error).message).toBe('Stored authentication data is invalid.');
+      expect((thrown as Error).message).not.toContain(exposedPassword);
     });
   });
 
